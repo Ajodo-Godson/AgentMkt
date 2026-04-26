@@ -22,15 +22,16 @@ async function executeStep(
   step: Step,
   job_id: string,
   allSteps: Step[],
+  candidates: import("@agentmkt/contracts").WorkerCandidate[],
   log: ReturnType<typeof logger.child>
 ): Promise<Step> {
   let current = { ...step, status: "running" as const };
   log.info({ step_id: step.id, dag_node: step.dag_node }, "Executing step");
 
-  // Find the worker from step — the endpoint comes from marketplace discovery.
-  // The orchestrator stores the endpoint_url in the step via the candidate list.
-  // For mocks, the hub.forward mock ignores the endpoint.
+  // Look up the worker's real endpoint_url from the candidate list.
+  const candidate = candidates.find((c) => c.worker_id === step.primary_worker_id);
   const supplierEndpoint =
+    candidate?.endpoint_url ??
     `${process.env.HUB_BASE_URL ?? "http://localhost:4002"}/__supplier/${step.primary_worker_id}`;
 
   let holdInvoiceId = "";
@@ -76,33 +77,42 @@ async function executeStep(
         });
       }
 
-      // 3. Verify result
+      // 3. Verify result (skip when hub is mocked — result is mock data, real verify would reject it)
       const result = forwardResult.result as StepResult;
-      const verifyResp = await marketplace.verify({
-        capability_tag: step.capability_tag as CapabilityTag,
-        spec: step.dag_node,
-        result,
-      });
+      const hubMocked =
+        process.env.USE_MOCKS === "true" || process.env.USE_MOCK_HUB === "true";
 
-      if (verifyResp.verdict.kind === "PASS") {
-        // 4a. Settle
+      if (!hubMocked) {
+        const verifyResp = await marketplace.verify({
+          capability_tag: step.capability_tag as CapabilityTag,
+          spec: step.dag_node,
+          result,
+        });
+
+        if (verifyResp.verdict.kind === "PASS") {
+          await hub.settle({ hold_invoice_id: holdInvoiceId });
+          log.info({ step_id: step.id }, "Step succeeded");
+          return { ...current, status: "succeeded", result, retries_left: step.retries_left - attempt };
+        }
+
+        if (verifyResp.verdict.kind === "FAIL_FATAL") {
+          await hub.cancel({ hold_invoice_id: holdInvoiceId, reason: verifyResp.verdict.reason });
+          if (step.optional) {
+            log.warn({ step_id: step.id }, "Optional step failed fatally, skipping");
+            return { ...current, status: "skipped", error: verifyResp.verdict.reason };
+          }
+          log.error({ step_id: step.id }, "Step failed fatally");
+          return { ...current, status: "failed", error: verifyResp.verdict.reason };
+        }
+
+        // FAIL_RETRYABLE — cancel this hold and retry
+        await hub.cancel({ hold_invoice_id: holdInvoiceId, reason: verifyResp.verdict.reason });
+      } else {
+        // Hub mocked: auto-settle and pass
         await hub.settle({ hold_invoice_id: holdInvoiceId });
-        log.info({ step_id: step.id }, "Step succeeded");
+        log.info({ step_id: step.id }, "Step succeeded (hub mocked, verify skipped)");
         return { ...current, status: "succeeded", result, retries_left: step.retries_left - attempt };
       }
-
-      if (verifyResp.verdict.kind === "FAIL_FATAL") {
-        await hub.cancel({ hold_invoice_id: holdInvoiceId, reason: verifyResp.verdict.reason });
-        if (step.optional) {
-          log.warn({ step_id: step.id }, "Optional step failed fatally, skipping");
-          return { ...current, status: "skipped", error: verifyResp.verdict.reason };
-        }
-        log.error({ step_id: step.id }, "Step failed fatally");
-        return { ...current, status: "failed", error: verifyResp.verdict.reason };
-      }
-
-      // FAIL_RETRYABLE — cancel this hold and retry
-      await hub.cancel({ hold_invoice_id: holdInvoiceId, reason: verifyResp.verdict.reason });
       log.warn({ step_id: step.id, attempt }, "Step retryable fail, retrying");
     } catch (err) {
       log.error({ step_id: step.id, attempt, err }, "Step execution error");
@@ -124,7 +134,7 @@ async function executeStep(
 export async function dagExecutorNode(
   state: OrchestratorStateType
 ): Promise<Partial<OrchestratorStateType>> {
-  const { job, plan } = state;
+  const { job, plan, candidates } = state;
   const log = logger.child({ job_id: job.id, node: "dag-executor" });
 
   let steps = [...state.steps];
@@ -140,7 +150,7 @@ export async function dagExecutorNode(
 
     // Run ready steps (Phase 1: sequential; Phase 3: use LangGraph Send for parallel)
     for (const step of ready) {
-      const result = await executeStep(step, job.id, steps, log);
+      const result = await executeStep(step, job.id, steps, candidates, log);
       steps = steps.map((s) => (s.id === result.id ? result : s));
       if (plan) {
         planStore.set(plan.id, {
