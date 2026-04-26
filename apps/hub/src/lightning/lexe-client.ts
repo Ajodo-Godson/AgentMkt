@@ -251,7 +251,13 @@ export const lexeClient = {
     const start = Date.now();
     while (Date.now() - start < timeoutMs) {
       const p = await this.getPayment(index);
-      if (p.status !== "pending") return p;
+      if (p.status === "failed") return p;
+      // Lexe can mark an outbound payment "completed" before populating the
+      // preimage field. Keep polling until the preimage arrives so that the
+      // L402 client can build the Authorization header.
+      if (p.status === "completed") {
+        if (p.direction !== "outbound" || p.preimage) return p;
+      }
       await new Promise((r) => setTimeout(r, intervalMs));
     }
     throw new HubError(
