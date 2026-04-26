@@ -71,6 +71,7 @@ export const hub = {
     post<{ ok: true }>("/hub/human-submit", req),
 
   jobBalance: async (job_id: string) => {
+    if (useMocks()) return mockHub.jobBalance(job_id);
     const res = await fetch(`${BASE}/hub/job-balance/${job_id}`);
     if (!res.ok) throw new Error(`Hub /hub/job-balance/${job_id} → ${res.status}`);
     return res.json() as Promise<{
