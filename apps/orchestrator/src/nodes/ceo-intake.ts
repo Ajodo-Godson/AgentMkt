@@ -33,6 +33,50 @@ function normalizeCapabilityTags(tags: string[]): CapabilityTag[] {
   );
 }
 
+function inferCapabilityTagsFromPrompt(prompt: string): CapabilityTag[] {
+  const lower = prompt.toLowerCase();
+  const tags: CapabilityTag[] = [];
+
+  const asksForWriting =
+    /\b(write|draft|author|compose|essay|article|blog post|blogpost|story)\b/.test(lower);
+  const asksForSummary =
+    /\b(summarize|summarise|summary|recap|tl;dr)\b/.test(lower);
+  const asksForImage =
+    /\b(image|illustration|picture|poster|generate an image)\b/.test(lower);
+  const asksForCodeReview =
+    /\b(code review|review this code|review code)\b/.test(lower);
+  const asksForFactCheck =
+    /\b(fact check|fact-check|verify facts|check facts)\b/.test(lower);
+  const asksForVoiceover =
+    /\b(voiceover|native speaker|record|spoken audio)\b/.test(lower);
+  const asksForTts =
+    /\b(text to speech|tts|voice synthesis|spoken version)\b/.test(lower);
+  const asksForTranslation =
+    /\btranslate|translation\b/.test(lower);
+
+  if (asksForWriting) tags.push("creative_writing_human");
+  if (asksForSummary) tags.push("summarization");
+  if (asksForImage) tags.push("image_generation");
+  if (asksForCodeReview) tags.push("code_review");
+  if (asksForFactCheck) tags.push("fact_check");
+  if (asksForVoiceover) tags.push("voiceover_human");
+  if (asksForTts) tags.push("tts_en");
+
+  if (asksForTranslation) {
+    if (/\bfrench|fran[cç]ais|fr\b/.test(lower)) tags.push("translation_fr");
+    if (/\bspanish|espa[nñ]ol|es\b/.test(lower)) tags.push("translation_es");
+    if (/\bgerman|deutsch|de\b/.test(lower)) tags.push("translation_de");
+  }
+
+  return Array.from(new Set(tags));
+}
+
+function reconcileCapabilityTags(prompt: string, extracted: string[]): CapabilityTag[] {
+  const inferred = inferCapabilityTagsFromPrompt(prompt);
+  if (inferred.length > 0) return inferred;
+  return normalizeCapabilityTags(extracted);
+}
+
 async function extractIntent(prompt: string): Promise<IntentExtraction> {
   const result = await chatCompletion(
     [
@@ -96,7 +140,10 @@ export async function ceoIntakeNode(
 
   // Clarification is suppressed for demo — CEO proceeds with available info.
   // COO will note missing details as plan assumptions.
-  const requested_capability_tags = normalizeCapabilityTags(extraction.capability_tags);
+  const requested_capability_tags = reconcileCapabilityTags(
+    job.prompt,
+    extraction.capability_tags
+  );
 
   const updated: Job = {
     ...job,
