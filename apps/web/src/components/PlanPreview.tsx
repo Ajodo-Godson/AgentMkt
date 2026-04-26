@@ -16,7 +16,7 @@ export function PlanPreview({ snapshot, isConfirming, onConfirm }: PlanPreviewPr
     return null;
   }
 
-  const humanStep = snapshot.plan.steps.find((step) => step.human_required);
+  const overWallet = snapshot.debug?.cfo_verdict?.kind === "USER_CONFIRM";
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/90 px-4">
@@ -28,15 +28,15 @@ export function PlanPreview({ snapshot, isConfirming, onConfirm }: PlanPreviewPr
             </div>
             <div>
               <p className="section-label text-warning">Approval</p>
-              <h2 className="text-lg font-semibold">Confirm human worker route</h2>
+              <h2 className="text-lg font-semibold">Confirm over-wallet route</h2>
             </div>
           </div>
           <p className="text-sm leading-6 text-muted-foreground">
             Route estimate is{" "}
             <span className="mono font-semibold text-foreground">{snapshot.plan.total_estimate_sats} sats</span>.{" "}
-            {humanStep
-              ? "This route includes a human step, so AgentMkt asks for approval before reserving funds."
-              : "AgentMkt flagged unusual route cost and asks for approval before reserving funds."}
+            {overWallet
+              ? "The COO proposal exceeds the current wallet balance, so AgentMkt asks for approval before continuing."
+              : "AgentMkt paused this route and is waiting for confirmation before continuing."}
           </p>
         </div>
 
@@ -44,7 +44,7 @@ export function PlanPreview({ snapshot, isConfirming, onConfirm }: PlanPreviewPr
           <div className="mb-3 rounded-md border border-warning/25 bg-warning/10 p-3 text-sm text-warning">
             <div className="flex items-center gap-2">
               <AlertTriangle className="h-4 w-4" />
-              Approval lets AgentMkt reserve wallet funds for the selected route.
+              Approval acknowledges that the proposed route exceeds available wallet balance.
             </div>
           </div>
           {snapshot.plan.steps.map((step, index) => (
@@ -53,7 +53,7 @@ export function PlanPreview({ snapshot, isConfirming, onConfirm }: PlanPreviewPr
                 <p className="text-sm font-medium">
                   {index + 1}. {step.dag_node.replaceAll("_", " ")}
                 </p>
-                <p className="text-xs text-muted-foreground">{step.human_required ? "Human-required" : "Agent step"}</p>
+                <p className="text-xs text-muted-foreground">{step.human_required ? "Human step" : "Agent step"}</p>
               </div>
               <p className="mono text-sm text-primary">{step.estimate_sats} sats</p>
             </div>
@@ -68,7 +68,7 @@ export function PlanPreview({ snapshot, isConfirming, onConfirm }: PlanPreviewPr
             type="button"
           >
             <X className="h-4 w-4" />
-            Cancel
+            Stop route
           </button>
           <button
             className="inline-flex h-10 items-center gap-2 rounded-md bg-primary px-4 text-sm font-semibold text-primary-foreground transition hover:brightness-110 disabled:opacity-60"
@@ -77,7 +77,7 @@ export function PlanPreview({ snapshot, isConfirming, onConfirm }: PlanPreviewPr
             type="button"
           >
             <Check className="h-4 w-4" />
-            Confirm route
+            Acknowledge
           </button>
         </div>
       </section>
