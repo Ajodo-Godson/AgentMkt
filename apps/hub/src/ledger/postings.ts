@@ -8,6 +8,7 @@
 // =============================================================================
 
 import { schema } from "@agentmkt/db";
+import { randomUUID } from "node:crypto";
 import type {
   JobId,
   LedgerEntryType,
@@ -52,6 +53,7 @@ export async function recordPosting(
   const [row] = await db
     .insert(schema.ledgerEntries)
     .values({
+      id: `ledger_${randomUUID()}`,
       job_id: input.job_id,
       step_id: input.step_id ?? null,
       type: input.type,

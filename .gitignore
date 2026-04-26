@@ -4,8 +4,12 @@ node_modules/
 
 # Build output
 dist/
+.next/
+out/
 build/
 *.tsbuildinfo
+.turbo/
+.cache/
 
 # Env / secrets
 .env
@@ -35,3 +39,6 @@ coverage/
 
 # Drizzle generated files we want to keep migrations but ignore meta cache
 packages/db/.drizzle-cache/
+packages/db/.drizzle/
+
+instructions.md

@@ -1,6 +1,6 @@
 {
-  "id": "7a7724a2-6a90-41ca-b92b-1a50cc0ea586",
-  "prevId": "00000000-0000-0000-0000-000000000000",
+  "id": "3a31782c-d873-4e23-84bf-b4caa93bb958",
+  "prevId": "7a7724a2-6a90-41ca-b92b-1a50cc0ea586",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -36,14 +36,51 @@
           "name": "bolt11",
           "type": "text",
           "primaryKey": false,
-          "notNull": true
+          "notNull": true,
+          "default": "''"
         },
         "status": {
           "name": "status",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
-          "default": "'pending'"
+          "default": "'held'"
+        },
+        "human_payout_bolt11": {
+          "name": "human_payout_bolt11",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "human_submitted_result": {
+          "name": "human_submitted_result",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "paid_to_supplier_sats": {
+          "name": "paid_to_supplier_sats",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "fee_sats": {
+          "name": "fee_sats",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "preimage": {
+          "name": "preimage",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "cancel_reason": {
+          "name": "cancel_reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
         },
         "created_at": {
           "name": "created_at",
@@ -57,9 +94,47 @@
           "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
         }
       },
-      "indexes": {},
+      "indexes": {
+        "hold_invoices_job_idx": {
+          "name": "hold_invoices_job_idx",
+          "columns": [
+            {
+              "expression": "job_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "hold_invoices_status_idx": {
+          "name": "hold_invoices_status_idx",
+          "columns": [
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
       "foreignKeys": {
         "hold_invoices_job_id_jobs_id_fk": {
           "name": "hold_invoices_job_id_jobs_id_fk",
@@ -226,6 +301,18 @@
           "primaryKey": false,
           "notNull": false
         },
+        "hold_invoice_id": {
+          "name": "hold_invoice_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "meta": {
+          "name": "meta",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp with time zone",
@@ -234,7 +321,68 @@
           "default": "now()"
         }
       },
-      "indexes": {},
+      "indexes": {
+        "ledger_entries_job_idx": {
+          "name": "ledger_entries_job_idx",
+          "columns": [
+            {
+              "expression": "job_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "ledger_entries_hold_idx": {
+          "name": "ledger_entries_hold_idx",
+          "columns": [
+            {
+              "expression": "hold_invoice_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "ledger_entries_bolt11_idx": {
+          "name": "ledger_entries_bolt11_idx",
+          "columns": [
+            {
+              "expression": "bolt11",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "ledger_entries_type_idx": {
+          "name": "ledger_entries_type_idx",
+          "columns": [
+            {
+              "expression": "type",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
       "foreignKeys": {
         "ledger_entries_job_id_jobs_id_fk": {
           "name": "ledger_entries_job_id_jobs_id_fk",
@@ -654,6 +802,93 @@
           "onUpdate": "no action"
         }
       },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.topup_invoices": {
+      "name": "topup_invoices",
+      "schema": "",
+      "columns": {
+        "bolt11": {
+          "name": "bolt11",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "job_id": {
+          "name": "job_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "amount_sats": {
+          "name": "amount_sats",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "payment_index": {
+          "name": "payment_index",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "payment_hash": {
+          "name": "payment_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "topup_invoices_job_idx": {
+          "name": "topup_invoices_job_idx",
+          "columns": [
+            {
+              "expression": "job_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "topup_invoices_payment_index_idx": {
+          "name": "topup_invoices_payment_index_idx",
+          "columns": [
+            {
+              "expression": "payment_index",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},

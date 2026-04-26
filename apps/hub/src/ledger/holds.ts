@@ -9,6 +9,7 @@
 import { schema } from "@agentmkt/db";
 import { db } from "@agentmkt/db";
 import { eq } from "drizzle-orm";
+import { randomUUID } from "node:crypto";
 import type { HoldStatus, JobId, StepId } from "@agentmkt/contracts";
 import { HubError } from "../lib/errors.js";
 
@@ -24,6 +25,7 @@ export async function createHold(input: {
   const [row] = await db
     .insert(schema.holdInvoices)
     .values({
+      id: randomUUID(),
       job_id: input.job_id,
       step_id: input.step_id,
       amount_sats: input.amount_sats,

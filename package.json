@@ -1,26 +1,32 @@
 {
   "name": "agentmkt",
   "private": true,
-  "version": "0.0.1",
-  "description": "AgentMkt — Lightning Agent Marketplace",
-  "license": "MIT",
+  "version": "0.0.0",
   "packageManager": "pnpm@10.33.0",
   "engines": {
     "node": ">=22"
   },
   "scripts": {
-    "dev:hub": "pnpm --filter @agentmkt/hub dev",
-    "build:hub": "pnpm --filter @agentmkt/hub build",
+    "build": "pnpm -r build",
+    "dev": "pnpm -r --parallel dev",
+    "lint": "pnpm -r lint",
+    "typecheck": "pnpm -r typecheck",
     "db:generate": "pnpm --filter @agentmkt/db generate",
     "db:migrate": "pnpm --filter @agentmkt/db migrate",
     "db:push": "pnpm --filter @agentmkt/db push",
+    "db:seed": "tsx scripts/seed.ts",
+    "smoke": "tsx scripts/smoke.ts",
+    "dev:orchestrator": "pnpm --filter @agentmkt/orchestrator dev",
+    "dev:hub": "pnpm --filter @agentmkt/hub dev",
+    "build:hub": "pnpm --filter @agentmkt/hub build",
     "smoke:1sat": "pnpm --filter @agentmkt/hub smoke:1sat",
     "smoke:happy": "pnpm --filter @agentmkt/hub smoke:happy",
     "fake-supplier": "pnpm --filter @agentmkt/hub fake-supplier"
   },
   "devDependencies": {
-    "typescript": "^5.6.3",
+    "@types/node": "^22.10.0",
+    "dotenv": "^16.4.5",
     "tsx": "^4.19.2",
-    "@types/node": "^22.7.4"
+    "typescript": "^5.6.3"
   }
 }
