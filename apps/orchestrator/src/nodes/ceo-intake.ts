@@ -52,16 +52,14 @@ export async function ceoIntakeNode(
 
   log.info("CEO intake started");
 
-  // Hard budget floor
-  if (job.budget_sats < 100) {
-    log.warn("Budget below minimum (100 sats)");
-    const updated: Job = {
-      ...job,
-      status: "failed",
-      updated_at: new Date().toISOString(),
-    };
-    jobStore.set(job.id, updated);
-    return { job: updated, error: "Budget must be at least 100 sats." };
+  // Read the user's wallet balance — this is the CFO's effective budget ceiling.
+  let wallet_balance_sats = 0;
+  try {
+    const balance = await hub.walletBalance(job.user_id);
+    wallet_balance_sats = balance.available_sats;
+    log.info({ wallet_balance_sats }, "Wallet balance fetched");
+  } catch (err) {
+    log.error({ err }, "Failed to fetch wallet balance — proceeding with 0");
   }
 
   // Extract intent from the prompt
@@ -96,17 +94,6 @@ export async function ceoIntakeNode(
     }
   }
 
-  // Request hub topup invoice
-  let bolt11: string | null = null;
-  try {
-    const topup = await hub.topup({ job_id: job.id, amount_sats: job.budget_sats });
-    bolt11 = topup.bolt11;
-    log.info({ bolt11 }, "Hub topup invoice created");
-  } catch (err) {
-    log.error({ err }, "Hub topup failed");
-    // Non-fatal in mock mode; continue
-  }
-
   const updated: Job = {
     ...job,
     status: "planning",
@@ -116,6 +103,6 @@ export async function ceoIntakeNode(
 
   return {
     job: updated,
-    hub_bolt11: bolt11,
+    wallet_balance_sats,
   };
 }
