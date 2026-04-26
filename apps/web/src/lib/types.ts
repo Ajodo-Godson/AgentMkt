@@ -17,7 +17,6 @@ export interface Job {
   id: string;
   user_id: string;
   prompt: string;
-  budget_sats: number;
   locked_sats: number;
   spent_sats: number;
   status: JobStatus;
@@ -63,6 +62,18 @@ export interface JobSnapshot {
   job: Job;
   plan: Plan | null;
   steps_progress: Step[];
+  final_output?: string | null;
+  debug?: {
+    wallet_balance_sats?: number | null;
+    error?: string | null;
+    plan_iterations?: number | null;
+    cfo_verdict?: {
+      kind: string;
+      summary?: string;
+      reason?: string;
+      detail?: string;
+    } | null;
+  } | null;
 }
 
 export interface WorkerCandidate {
