@@ -10,6 +10,7 @@ import * as z from "zod";
 import { CreateJobRequestSchema, ClarifyRequestSchema, ConfirmRequestSchema } from "@agentmkt/contracts";
 import type { Job } from "@agentmkt/contracts";
 import { db, schema } from "@agentmkt/db";
+import { eq } from "drizzle-orm";
 import { graph } from "./graph.js";
 import { jobStore, planStore } from "./store.js";
 import { logger } from "./logger.js";
@@ -156,7 +157,25 @@ app.get("/jobs/:job_id", async (c) => {
   const job = jobStore.get(job_id);
 
   if (!job) {
-    return c.json({ error: "not_found" }, 404);
+    // Orchestrator may have restarted — reconstitute from DB so the frontend
+    // sees a terminal status instead of polling forever on 404.
+    const [dbJob] = await db
+      .select()
+      .from(schema.jobs)
+      .where(eq(schema.jobs.id, job_id))
+      .limit(1);
+    if (!dbJob) return c.json({ error: "not_found" }, 404);
+    const reconstituted: Job = {
+      id: dbJob.id,
+      user_id: dbJob.user_id ?? "unknown",
+      prompt: dbJob.prompt ?? "",
+      status: (dbJob.status as Job["status"]) ?? "failed",
+      locked_sats: 0,
+      spent_sats: 0,
+      created_at: dbJob.created_at?.toISOString() ?? new Date().toISOString(),
+      updated_at: dbJob.updated_at?.toISOString() ?? new Date().toISOString(),
+    };
+    return c.json({ job: reconstituted, plan: null, steps_progress: [], final_output: null, hub_bolt11: null, debug: null });
   }
 
   // Find the latest non-superseded plan
