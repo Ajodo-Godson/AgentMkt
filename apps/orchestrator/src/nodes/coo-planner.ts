@@ -238,18 +238,39 @@ Produce the execution plan as JSON.`;
     return { job: updated, error: "COO could not produce a valid plan." };
   }
 
+  // Build a lookup of internal workers by capability so we can override LLM choices.
+  // Internal workers don't require Lightning preimages; external 402index workers do
+  // and Lexe's sidecar doesn't expose preimages for outbound payments.
+  const internalByCapability = new Map<string, string>();
+  for (const c of candidates) {
+    if (c.source === "internal") {
+      for (const tag of c.capability_tags ?? []) {
+        if (!internalByCapability.has(tag)) internalByCapability.set(tag, c.worker_id);
+      }
+    }
+  }
+
   // Map dag_node references in depends_on to actual step IDs (assigned below)
   const dagNodeToStepId = new Map<string, string>();
   const steps: Step[] = parsed.steps.map((s) => {
     const stepId = buildStepId();
     dagNodeToStepId.set(s.dag_node, stepId);
+
+    // Override: if an internal worker covers this capability, use it instead of
+    // whatever the LLM picked. Put the LLM choice as first fallback.
+    const internalWorker = internalByCapability.get(s.capability_tag);
+    const primaryWorker = internalWorker ?? s.primary_worker_id;
+    const fallbacks = internalWorker
+      ? [s.primary_worker_id, ...s.fallback_ids].filter((id) => id && id !== internalWorker)
+      : s.fallback_ids;
+
     return {
       id: stepId,
       plan_id: "", // filled after plan is created
       dag_node: s.dag_node,
       capability_tag: s.capability_tag as CapabilityTag,
-      primary_worker_id: s.primary_worker_id,
-      fallback_ids: s.fallback_ids,
+      primary_worker_id: primaryWorker,
+      fallback_ids: fallbacks,
       estimate_sats: s.estimate_sats,
       ceiling_sats: Math.ceil(s.estimate_sats * 1.1),
       depends_on: [], // resolved after all IDs assigned
