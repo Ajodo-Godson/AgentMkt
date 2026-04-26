@@ -48,7 +48,13 @@ function buildStepId(): string {
 export async function cooPlannnerNode( // exported name kept for graph.ts import compatibility
   state: OrchestratorStateType
 ): Promise<Partial<OrchestratorStateType>> {
-  const { job, wallet_balance_sats } = state;
+  const {
+    job,
+    wallet_balance_sats,
+    requested_capability_tags,
+    intake_intent,
+    request_constraints,
+  } = state;
   const iteration = (state.plan_iterations ?? 0) + 1;
   const log = logger.child({ job_id: job.id, node: "coo-planner", iteration });
 
@@ -61,8 +67,8 @@ export async function cooPlannnerNode( // exported name kept for graph.ts import
     return { job: updated, error: "Could not produce a valid plan after 3 attempts." };
   }
 
-  // Discover candidates for each capability tag mentioned in the prompt.
-  // We do a broad discovery to give the LLM a full picture.
+  // Discover candidates only for capabilities the CEO extracted from the request.
+  // Broad discovery invites the planner to invent unrelated steps.
   let candidates = state.candidates;
   if (candidates.length === 0) {
     const allTags = [
@@ -70,9 +76,11 @@ export async function cooPlannnerNode( // exported name kept for graph.ts import
       "tts_en", "tts_fr", "voiceover_human",
       "creative_writing_human", "image_generation", "code_review", "fact_check",
     ] as CapabilityTag[];
+    const discoveryTags =
+      requested_capability_tags.length > 0 ? requested_capability_tags : allTags;
     try {
       const disc = await marketplace.discover({
-        capability_tags: allTags,
+        capability_tags: discoveryTags,
         limit: 10,
       });
       candidates = disc.candidates;
@@ -83,6 +91,13 @@ export async function cooPlannnerNode( // exported name kept for graph.ts import
 
   const candidatesJson = JSON.stringify(candidates, null, 2);
   const userMessage = `User prompt: ${job.prompt}
+CEO extracted intent: ${intake_intent ?? "not available"}
+Requested capability tags: ${
+  requested_capability_tags.length > 0
+    ? requested_capability_tags.join(", ")
+    : "not available"
+}
+Constraints: ${JSON.stringify(request_constraints ?? {})}
 Wallet balance: ${wallet_balance_sats} sats (keep total plan cost well below this)
 
 Available workers:
@@ -155,7 +170,9 @@ Produce the execution plan as JSON.`;
 
   // Resolve depends_on dag_node → step_id
   parsed.steps.forEach((s, i) => {
-    steps[i].depends_on = s.depends_on
+    const step = steps[i];
+    if (!step) return;
+    step.depends_on = s.depends_on
       .map((dn) => dagNodeToStepId.get(dn))
       .filter((id): id is string => id !== undefined);
   });
