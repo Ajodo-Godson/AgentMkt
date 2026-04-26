@@ -38,10 +38,10 @@ function evaluate(
     }
   }
 
-  // Rule 3: untrusted worker without sufficient stake
+  // Rule 3: untrusted worker without sufficient stake (internal workers are exempt)
   for (const step of steps) {
     const candidate = candidates.find((c) => c.worker_id === step.primary_worker_id);
-    if (candidate) {
+    if (candidate && candidate.source !== "internal") {
       const stake = (candidate as { stake_sats?: number }).stake_sats ?? 0;
       if (candidate.total_jobs < 5 && stake < 2 * step.estimate_sats) {
         return {
