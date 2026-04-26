@@ -9,6 +9,7 @@ import { Command } from "@langchain/langgraph";
 import * as z from "zod";
 import { CreateJobRequestSchema, ClarifyRequestSchema, ConfirmRequestSchema } from "@agentmkt/contracts";
 import type { Job } from "@agentmkt/contracts";
+import { db, schema } from "@agentmkt/db";
 import { graph } from "./graph.js";
 import { jobStore, planStore } from "./store.js";
 import { logger } from "./logger.js";
@@ -67,6 +68,28 @@ app.post("/jobs", async (c) => {
   };
 
   jobStore.set(job_id, job);
+
+  try {
+    await db.insert(schema.users).values({ id: user_id }).onConflictDoNothing();
+    await db
+      .insert(schema.jobs)
+      .values({
+        id: job_id,
+        user_id,
+        prompt,
+        budget_sats: 0,
+        locked_sats: 0,
+        spent_sats: 0,
+        status: "intake",
+        created_at: new Date(now),
+        updated_at: new Date(now),
+      })
+      .onConflictDoNothing();
+  } catch (err) {
+    logger.error({ job_id, user_id, err }, "Failed to persist job to database");
+    jobStore.delete(job_id);
+    return c.json({ error: "persistence_failed", details: "Unable to create job record" }, 500);
+  }
 
   return c.json({ job_id });
 });
