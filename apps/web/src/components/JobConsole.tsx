@@ -18,6 +18,7 @@ import type { JobSnapshot, ServiceHealthItem, ServiceHealthResponse } from "@/li
 const terminalStatuses = new Set(["completed", "failed", "cancelled"]);
 const buyerUserId = process.env.NEXT_PUBLIC_BUYER_USER_ID ?? "user_demo_buyer";
 const DEFAULT_TOPUP_SATS = Number(process.env.NEXT_PUBLIC_DEFAULT_TOPUP_SATS ?? 1000);
+const QUICK_TOPUP_OPTIONS = [500, 1000, 2000];
 
 export function JobConsole({ initialJobId }: { initialJobId?: string }) {
   const [prompt, setPrompt] = useState(DEFAULT_PROMPT);
@@ -34,6 +35,7 @@ export function JobConsole({ initialJobId }: { initialJobId?: string }) {
   const [topupBolt11, setTopupBolt11] = useState<string | null>(null);
   const [topupJobId, setTopupJobId] = useState<string | null>(null);
   const [startingJob, setStartingJob] = useState(false);
+  const [topupAmountInput, setTopupAmountInput] = useState(String(DEFAULT_TOPUP_SATS));
 
   const loadJob = useCallback(async (id: string) => {
     const nextSnapshot = await getJob(id);
@@ -139,6 +141,9 @@ export function JobConsole({ initialJobId }: { initialJobId?: string }) {
     setTopupBolt11(null);
     setTopupJobId(null);
     try {
+      if (!topupAmountValid) {
+        throw new Error("Enter a valid topup amount in sats");
+      }
       const userId = wallet ? userIdFromPubkey(wallet.pubkey) : buyerUserId;
       const created = await createJob({
         user_id: userId,
@@ -149,7 +154,7 @@ export function JobConsole({ initialJobId }: { initialJobId?: string }) {
       await loadJob(created.job_id);
       setTopupStatus("creating");
       try {
-        const invoice = await createTopupInvoice(created.job_id, DEFAULT_TOPUP_SATS);
+        const invoice = await createTopupInvoice(created.job_id, topupAmountSats);
         setTopupStatus("awaiting");
         setTopupBolt11(invoice.bolt11);
         setTopupJobId(created.job_id);
@@ -162,7 +167,7 @@ export function JobConsole({ initialJobId }: { initialJobId?: string }) {
     } finally {
       setIsLaunching(false);
     }
-  }, [loadJob, prompt, wallet]);
+  }, [loadJob, prompt, topupAmountSats, topupAmountValid, wallet]);
 
   const handleConfirm = useCallback(
     async (confirmed: boolean) => {
@@ -203,6 +208,15 @@ export function JobConsole({ initialJobId }: { initialJobId?: string }) {
     },
     [jobId, loadJob]
   );
+
+  const parsedTopupAmount = Number.parseInt(topupAmountInput, 10);
+  const topupAmountSats = Number.isFinite(parsedTopupAmount) ? parsedTopupAmount : NaN;
+  const topupAmountValid = Number.isInteger(topupAmountSats) && topupAmountSats > 0;
+  const suggestedTopupSats = useMemo(() => {
+    const estimate = snapshot?.plan?.total_estimate_sats;
+    if (typeof estimate !== "number" || estimate <= 0) return null;
+    return Math.max(100, Math.ceil(estimate * 1.2));
+  }, [snapshot?.plan?.total_estimate_sats]);
 
   const traceLines = useMemo(() => buildTraceLines(snapshot), [snapshot]);
 
@@ -256,13 +270,62 @@ export function JobConsole({ initialJobId }: { initialJobId?: string }) {
               </p>
             </div>
           )}
+          <div className="mt-3 border-t border-border-subtle pt-3">
+            <label className="mb-2 block text-xs text-muted-foreground" htmlFor="topup-amount">
+              Topup amount
+            </label>
+            <div className="flex items-center gap-2">
+              <input
+                className="mono h-9 w-full rounded-md border border-border-subtle bg-card px-3 text-sm text-foreground outline-none focus:border-primary/60 focus:ring-2 focus:ring-primary/20"
+                id="topup-amount"
+                inputMode="numeric"
+                min={1}
+                onChange={(event) => setTopupAmountInput(event.target.value)}
+                placeholder={String(DEFAULT_TOPUP_SATS)}
+                value={topupAmountInput}
+              />
+              <span className="text-xs text-muted-foreground">sats</span>
+            </div>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {QUICK_TOPUP_OPTIONS.map((amount) => (
+                <button
+                  className="inline-flex h-8 items-center justify-center rounded-md border border-border-subtle bg-card px-3 text-xs font-medium text-foreground transition hover:bg-muted"
+                  key={amount}
+                  onClick={() => setTopupAmountInput(String(amount))}
+                  type="button"
+                >
+                  {amount} sats
+                </button>
+              ))}
+              {suggestedTopupSats ? (
+                <button
+                  className="inline-flex h-8 items-center justify-center rounded-md border border-primary/30 bg-primary/5 px-3 text-xs font-medium text-primary transition hover:bg-primary/10"
+                  onClick={() => setTopupAmountInput(String(suggestedTopupSats))}
+                  type="button"
+                >
+                  Use route estimate ({suggestedTopupSats} sats)
+                </button>
+              ) : null}
+            </div>
+            <p className="mt-2 text-xs text-muted-foreground">
+              Quick picks are available immediately. Route estimate autofill appears after a plan exists.
+            </p>
+          </div>
           {topupStatus !== "idle" ? (
             <div className="mt-2 border-t border-border-subtle pt-2 text-xs">
               <div className="flex items-center gap-2">
                 <Zap className="h-3.5 w-3.5 text-primary" />
                 {topupStatus === "creating" ? <span className="text-muted-foreground">Requesting topup...</span> : null}
-                {topupStatus === "awaiting" ? <span className="text-muted-foreground">Awaiting manual payment ({DEFAULT_TOPUP_SATS} sats)</span> : null}
-                {topupStatus === "paid" ? <span className="text-success">Paid, {DEFAULT_TOPUP_SATS} sats. Starting route...</span> : null}
+                {topupStatus === "awaiting" ? (
+                  <span className="text-muted-foreground">
+                    Awaiting manual payment ({topupAmountValid ? topupAmountSats : DEFAULT_TOPUP_SATS} sats)
+                  </span>
+                ) : null}
+                {topupStatus === "paid" ? (
+                  <span className="text-success">
+                    Paid, {topupAmountValid ? topupAmountSats : DEFAULT_TOPUP_SATS} sats. Starting route...
+                  </span>
+                ) : null}
                 {topupStatus === "error" ? <span className="text-danger">Topup failed</span> : null}
               </div>
               {topupBolt11 ? (
