@@ -48,7 +48,7 @@ function buildStepId(): string {
 export async function cooPlannnerNode( // exported name kept for graph.ts import compatibility
   state: OrchestratorStateType
 ): Promise<Partial<OrchestratorStateType>> {
-  const { job } = state;
+  const { job, wallet_balance_sats } = state;
   const iteration = (state.plan_iterations ?? 0) + 1;
   const log = logger.child({ job_id: job.id, node: "coo-planner", iteration });
 
@@ -72,7 +72,6 @@ export async function cooPlannnerNode( // exported name kept for graph.ts import
     try {
       const disc = await marketplace.discover({
         capability_tags: allTags,
-        max_price_sats: job.budget_sats,
         limit: 10,
       });
       candidates = disc.candidates;
@@ -83,7 +82,7 @@ export async function cooPlannnerNode( // exported name kept for graph.ts import
 
   const candidatesJson = JSON.stringify(candidates, null, 2);
   const userMessage = `User prompt: ${job.prompt}
-Budget: ${job.budget_sats} sats
+Wallet balance: ${wallet_balance_sats} sats (keep total plan cost well below this)
 
 Available workers:
 ${candidatesJson}
