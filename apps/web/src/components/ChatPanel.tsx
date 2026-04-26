@@ -43,7 +43,7 @@ export function ChatPanel({ prompt, snapshot, isLaunching, error, onPromptChange
         type="button"
       >
         <SendHorizontal className="h-4 w-4" />
-        {isLaunching ? "Submitting" : "Start route"}
+        {isLaunching ? "Funding route" : "Fund and start route"}
       </button>
 
       {error ? <div className="mt-4 rounded-md border border-danger/40 bg-danger/10 p-3 text-sm text-danger">{error}</div> : null}
@@ -65,7 +65,7 @@ export function ChatPanel({ prompt, snapshot, isLaunching, error, onPromptChange
           <p className="text-sm leading-6 text-danger">{snapshot?.debug?.error ?? "The orchestrator marked this job as failed."}</p>
         ) : (
           <p className="text-sm leading-6 text-muted-foreground">
-            Output appears here after execution and verification.
+            Output appears here after topup, execution, and verification.
           </p>
         )}
       </div>

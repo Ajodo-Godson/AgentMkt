@@ -37,6 +37,7 @@ export const CapabilityTagSchema = z.enum(CAPABILITY_TAGS);
 // =========================================================================
 export const JobStatusSchema = z.enum([
   "intake",
+  "awaiting_funds",
   "planning",
   "awaiting_user",
   "executing",

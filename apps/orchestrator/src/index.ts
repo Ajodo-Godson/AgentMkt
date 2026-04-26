@@ -12,6 +12,7 @@ import type { Job } from "@agentmkt/contracts";
 import { graph } from "./graph.js";
 import { jobStore, planStore } from "./store.js";
 import { logger } from "./logger.js";
+import { hub } from "./clients/hub.js";
 
 const app = new Hono();
 const PORT = Number(process.env.PORT_ORCHESTRATOR ?? 4001);
@@ -60,20 +61,55 @@ app.post("/jobs", async (c) => {
     prompt,
     locked_sats: 0,
     spent_sats: 0,
-    status: "intake",
+    status: "awaiting_funds",
     created_at: now,
     updated_at: now,
   };
 
   jobStore.set(job_id, job);
 
-  const config = { configurable: { thread_id: job_id } };
+  return c.json({ job_id });
+});
 
-  // Run graph asynchronously — caller polls GET /jobs/:id for status
+app.post("/jobs/:job_id/start", async (c) => {
+  const job_id = c.req.param("job_id");
+  const job = jobStore.get(job_id);
+
+  if (!job) {
+    return c.json({ error: "not_found" }, 404);
+  }
+
+  if (job.status !== "awaiting_funds") {
+    return c.json({ error: "validation", details: "Job is not awaiting funding" }, 400);
+  }
+
+  try {
+    const balance = await hub.jobBalance(job_id);
+    if (balance.available_sats <= 0) {
+      return c.json(
+        { error: "insufficient_funds", details: "Job has not been funded yet" },
+        402
+      );
+    }
+  } catch (err) {
+    return c.json(
+      { error: "hub_unavailable", details: err instanceof Error ? err.message : String(err) },
+      503
+    );
+  }
+
+  const config = { configurable: { thread_id: job_id } };
+  const updatedJob: Job = {
+    ...job,
+    status: "intake",
+    updated_at: new Date().toISOString(),
+  };
+  jobStore.set(job_id, updatedJob);
+
   (async () => {
     try {
       logger.info({ job_id }, "Graph execution started");
-      await graph.invoke({ job }, config);
+      await graph.invoke({ job: updatedJob }, config);
       logger.info({ job_id }, "Graph execution completed");
     } catch (err) {
       logger.error({ job_id, err }, "Graph execution error");
@@ -88,7 +124,7 @@ app.post("/jobs", async (c) => {
     }
   })();
 
-  return c.json({ job_id });
+  return c.json({ ok: true });
 });
 
 // ─── GET /jobs/:job_id ────────────────────────────────────────────────────────

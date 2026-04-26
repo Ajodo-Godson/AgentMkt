@@ -9,8 +9,8 @@ import { PlanTrace } from "./PlanTrace";
 import { RatingPrompt } from "./RatingPrompt";
 import { StatusBadge } from "./StatusBadge";
 import { TreasuryPanel } from "./TreasuryPanel";
-import { createTopupInvoice, getServiceHealth } from "@/lib/hub";
-import { clarifyJob, confirmJob, createJob, getJob } from "@/lib/orchestrator";
+import { createTopupInvoice, getServiceHealth, getTopupStatus } from "@/lib/hub";
+import { clarifyJob, confirmJob, createJob, getJob, startJob } from "@/lib/orchestrator";
 import { connectWallet, payInvoice, userIdFromPubkey, type ConnectedWallet } from "@/lib/webln";
 import { DEFAULT_PROMPT } from "@/lib/workers";
 import type { JobSnapshot, ServiceHealthItem, ServiceHealthResponse } from "@/lib/types";
@@ -99,6 +99,9 @@ export function JobConsole({ initialJobId }: { initialJobId?: string }) {
     setTopupError(null);
     setTopupStatus("idle");
     try {
+      if (!wallet) {
+        throw new Error("Connect Lightning wallet before starting a route");
+      }
       const userId = wallet ? userIdFromPubkey(wallet.pubkey) : buyerUserId;
       const created = await createJob({
         user_id: userId,
@@ -107,18 +110,32 @@ export function JobConsole({ initialJobId }: { initialJobId?: string }) {
       setJobId(created.job_id);
       window.history.pushState(null, "", `/jobs/${created.job_id}`);
       await loadJob(created.job_id);
+      setTopupStatus("creating");
+      try {
+        const invoice = await createTopupInvoice(created.job_id, DEFAULT_TOPUP_SATS);
+        setTopupStatus("awaiting");
+        await payInvoice(invoice.bolt11);
 
-      if (wallet) {
-        setTopupStatus("creating");
-        try {
-          const invoice = await createTopupInvoice(created.job_id, DEFAULT_TOPUP_SATS);
-          setTopupStatus("awaiting");
-          await payInvoice(invoice.bolt11);
-          setTopupStatus("paid");
-        } catch (caught) {
-          setTopupStatus("error");
-          setTopupError(caught instanceof Error ? caught.message : "Topup payment failed");
+        let paid = false;
+        for (let attempt = 0; attempt < 15; attempt++) {
+          const status = await getTopupStatus(invoice.bolt11);
+          if (status.paid) {
+            paid = true;
+            break;
+          }
+          await new Promise((resolve) => window.setTimeout(resolve, 1000));
         }
+
+        if (!paid) {
+          throw new Error("Topup payment was not confirmed by the hub");
+        }
+
+        setTopupStatus("paid");
+        await startJob(created.job_id);
+        await loadJob(created.job_id);
+      } catch (caught) {
+        setTopupStatus("error");
+        setTopupError(caught instanceof Error ? caught.message : "Topup payment failed");
       }
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Unable to launch job");

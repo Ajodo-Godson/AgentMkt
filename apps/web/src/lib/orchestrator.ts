@@ -8,6 +8,12 @@ export async function createJob(input: CreateJobRequest) {
   });
 }
 
+export async function startJob(jobId: string) {
+  return request<{ ok: true }>(`/api/jobs/${encodeURIComponent(jobId)}/start`, {
+    method: "POST",
+  });
+}
+
 export async function getJob(jobId: string) {
   return request<JobSnapshot>(`/api/jobs/${encodeURIComponent(jobId)}`);
 }

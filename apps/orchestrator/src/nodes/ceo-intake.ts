@@ -115,10 +115,10 @@ export async function ceoIntakeNode(
 
   log.info("CEO intake started");
 
-  // Read the user's wallet balance — this is the CFO's effective budget ceiling.
+  // Read the job's funded escrow balance — this is the CFO's effective budget ceiling.
   let wallet_balance_sats = 0;
   try {
-    const balance = await hub.walletBalance(job.user_id);
+    const balance = await hub.jobBalance(job.id);
     wallet_balance_sats = balance.available_sats;
     log.info({ wallet_balance_sats }, "Wallet balance fetched");
   } catch (err) {

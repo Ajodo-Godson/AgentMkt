@@ -134,6 +134,14 @@ function getApprovalState(snapshot: JobSnapshot | null) {
     };
   }
 
+  if (snapshot.job.status === "awaiting_funds") {
+    return {
+      title: "Awaiting topup",
+      detail: "Pay the topup invoice from the connected Lightning wallet before orchestration starts.",
+      boxTone: "border-warning/35 bg-warning/10"
+    };
+  }
+
   if (verdict?.kind === "REVISE") {
     return {
       title: "CFO requested a replan",

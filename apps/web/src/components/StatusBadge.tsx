@@ -5,6 +5,7 @@ type StatusKind = JobStatus | Step["status"];
 
 const statusConfig: Record<string, { label: string; tone: string; icon: typeof CircleDashed }> = {
   intake: { label: "Intake", tone: "border-info/25 bg-info/5 text-info", icon: CircleDashed },
+  awaiting_funds: { label: "Awaiting Funds", tone: "border-warning/30 bg-warning/10 text-warning", icon: Clock },
   planning: { label: "Planning", tone: "border-primary/30 bg-primary/5 text-primary", icon: Loader2 },
   awaiting_user: { label: "Approval", tone: "border-warning/30 bg-warning/10 text-warning", icon: AlertTriangle },
   executing: { label: "Executing", tone: "border-info/25 bg-info/5 text-info", icon: Loader2 },
