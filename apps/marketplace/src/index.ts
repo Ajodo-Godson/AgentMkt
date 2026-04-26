@@ -14,6 +14,18 @@ import { log } from "./log.js";
 
 const app = new Hono();
 
+// CORS — manual middleware; open to all origins (no credentials used).
+// Mirrors the pattern in apps/orchestrator/src/index.ts.
+app.use("*", async (c, next) => {
+  c.header("Access-Control-Allow-Origin", "*");
+  c.header("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  c.header("Access-Control-Allow-Headers", "Content-Type");
+  if (c.req.method === "OPTIONS") {
+    return c.body(null, 204);
+  }
+  await next();
+});
+
 app.get("/health", (c) => c.json({ ok: true, service: "marketplace" }));
 app.get("/", (c) => c.html(devUiHtml));
 

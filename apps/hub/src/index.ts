@@ -33,6 +33,18 @@ import { startHoldExpirySweeper } from "./ledger/expiry.js";
 
 const app = new Hono();
 
+// CORS — manual middleware; open to all origins (no credentials used).
+// Mirrors the pattern in apps/orchestrator/src/index.ts.
+app.use("*", async (c, next) => {
+  c.header("Access-Control-Allow-Origin", "*");
+  c.header("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  c.header("Access-Control-Allow-Headers", "Content-Type");
+  if (c.req.method === "OPTIONS") {
+    return c.body(null, 204);
+  }
+  await next();
+});
+
 // Light request logging — pino handles the structured side; this just gives
 // us a one-liner per request in dev.
 app.use("*", honoLogger((line) => logger.debug(line)));
