@@ -1,33 +1,22 @@
 "use client";
 
 import { ArrowUpRight, SendHorizontal, Sparkles } from "lucide-react";
-import { DEFAULT_PROMPT, routePreferenceLabels } from "@/lib/demo-data";
-import type { JobSnapshot, RoutePreference } from "@/lib/types";
+import { DEFAULT_PROMPT } from "@/lib/workers";
+import type { JobSnapshot } from "@/lib/types";
 
 interface ChatPanelProps {
   prompt: string;
-  routePreference: RoutePreference;
   snapshot: JobSnapshot | null;
   isLaunching: boolean;
   error: string | null;
   onPromptChange: (value: string) => void;
-  onRoutePreferenceChange: (value: RoutePreference) => void;
   onLaunch: () => void;
 }
 
-const routePreferences = Object.entries(routePreferenceLabels) as Array<[RoutePreference, (typeof routePreferenceLabels)[RoutePreference]]>;
-
-export function ChatPanel({
-  prompt,
-  routePreference,
-  snapshot,
-  isLaunching,
-  error,
-  onPromptChange,
-  onRoutePreferenceChange,
-  onLaunch
-}: ChatPanelProps) {
+export function ChatPanel({ prompt, snapshot, isLaunching, error, onPromptChange, onLaunch }: ChatPanelProps) {
   const completed = snapshot?.job.status === "completed";
+  const failed = snapshot?.job.status === "failed";
+  const result = snapshot?.final_output?.trim();
 
   return (
     <section className="panel-strong request-panel p-4">
@@ -47,25 +36,6 @@ export function ChatPanel({
         placeholder={DEFAULT_PROMPT}
       />
 
-      <div className="mt-4">
-        <div className="mb-2 flex items-center justify-between gap-3">
-          <p className="text-sm font-medium">Route preference</p>
-          <p className="text-xs text-muted-foreground">{routePreferenceLabels[routePreference].detail}</p>
-        </div>
-        <div className="segmented-control">
-          {routePreferences.map(([value, config]) => (
-            <button
-              className={routePreference === value ? "is-selected" : ""}
-              key={value}
-              onClick={() => onRoutePreferenceChange(value)}
-              type="button"
-            >
-              {config.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
       <button
         className="mt-4 inline-flex h-10 w-full items-center justify-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground transition hover:bg-primary/90 disabled:opacity-60"
         disabled={isLaunching || prompt.trim().length === 0}
@@ -73,7 +43,7 @@ export function ChatPanel({
         type="button"
       >
         <SendHorizontal className="h-4 w-4" />
-        {isLaunching ? "Routing request" : "Start routing"}
+        {isLaunching ? "Submitting request" : "Start routing"}
       </button>
 
       {error ? <div className="mt-4 rounded-md border border-danger/40 bg-danger/10 p-3 text-sm text-danger">{error}</div> : null}
@@ -83,21 +53,19 @@ export function ChatPanel({
           <Sparkles className="h-4 w-4 text-primary" />
           Result
         </div>
-        {completed ? (
+        {completed && result ? (
           <div className="space-y-3 text-sm leading-6 text-foreground">
-            <p>
-              Summary, French translation, and native voiceover completed. Verification passed and funds were settled through the
-              selected route.
-            </p>
+            <p className="whitespace-pre-wrap">{result}</p>
             <a className="inline-flex items-center gap-1 text-primary hover:underline" href="#trace">
-              View execution log
+              View orchestration state
               <ArrowUpRight className="h-3.5 w-3.5" />
             </a>
           </div>
+        ) : failed ? (
+          <p className="text-sm leading-6 text-danger">{snapshot?.debug?.error ?? "The orchestrator marked this job as failed."}</p>
         ) : (
           <p className="text-sm leading-6 text-muted-foreground">
-            Results appear here after verification. The route panel will show selected workers, alternatives, and payment state while
-            the job runs.
+            Results appear here after the orchestrator completes verification and synthesis.
           </p>
         )}
       </div>

@@ -3,56 +3,51 @@
 import { ArrowLeft, Bot, CheckCircle2, LinkIcon, PlusCircle, RadioTower, Send, ShieldCheck, Users } from "lucide-react";
 import Link from "next/link";
 import { FormEvent, useMemo, useState } from "react";
-import { getCapabilityLabel, saveUserWorker, workerCapabilityOptions } from "@/lib/workers";
-import type { CapabilityTag, MarketplaceWorker } from "@/lib/types";
+import { listWorker } from "@/lib/marketplace";
+import { getCapabilityLabel, workerCapabilityOptions } from "@/lib/workers";
+import type { CapabilityTag, ListWorkerRequest, Worker } from "@/lib/types";
 
 type WorkerType = "agent" | "human";
 
 interface ListingFormState {
   displayName: string;
-  ownerName: string;
+  ownerUserId: string;
   type: WorkerType;
-  capability: CapabilityTag;
+  capabilities: CapabilityTag[];
   basePriceSats: string;
-  contact: string;
-  description: string;
+  stakeSats: string;
+  endpointUrl: string;
+  telegramChatId: string;
 }
 
 const initialState: ListingFormState = {
   displayName: "",
-  ownerName: "user_demo_supplier",
+  ownerUserId: "user_demo_supplier_owner",
   type: "agent",
-  capability: "summarization",
+  capabilities: ["summarization"],
   basePriceSats: "250",
-  contact: "",
-  description: ""
+  stakeSats: "0",
+  endpointUrl: "",
+  telegramChatId: ""
 };
 
 export function WorkerListingForm() {
   const [form, setForm] = useState<ListingFormState>(initialState);
-  const [published, setPublished] = useState<MarketplaceWorker | null>(null);
+  const [published, setPublished] = useState<Worker | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const price = Number.parseInt(form.basePriceSats, 10);
-  const previewWorker = useMemo<MarketplaceWorker>(
+  const basePrice = Number.parseInt(form.basePriceSats, 10);
+  const stake = Number.parseInt(form.stakeSats, 10);
+  const preview = useMemo(
     () => ({
-      id: "worker_user_preview",
       displayName: form.displayName.trim() || "Unnamed worker",
       type: form.type,
-      capabilities: [form.capability],
-      basePriceSats: Number.isFinite(price) ? price : 0,
-      rating: null,
-      successRate: null,
-      completedJobs: 0,
-      latencyMs: form.type === "agent" ? 1000 : null,
-      source: "user",
-      status: "new",
-      description: form.description.trim() || "Describe the work this supplier can complete.",
-      contact: form.contact.trim() || (form.type === "agent" ? "https://example.com/mcp" : "telegram:@handle"),
-      listedAt: new Date().toISOString(),
-      reason: "Self-service listing."
+      capabilities: form.capabilities,
+      basePrice: Number.isFinite(basePrice) ? basePrice : 0,
+      contact: form.type === "agent" ? form.endpointUrl.trim() || "https://supplier.example/service" : form.telegramChatId.trim() || "000000000"
     }),
-    [form.capability, form.contact, form.description, form.displayName, form.type, price]
+    [basePrice, form.capabilities, form.displayName, form.endpointUrl, form.telegramChatId, form.type]
   );
 
   const updateForm = <Key extends keyof ListingFormState>(key: Key, value: ListingFormState[Key]) => {
@@ -60,47 +55,86 @@ export function WorkerListingForm() {
     setError(null);
   };
 
-  const submitListing = (event: FormEvent<HTMLFormElement>) => {
+  const toggleCapability = (capability: CapabilityTag) => {
+    setForm((current) => {
+      const exists = current.capabilities.includes(capability);
+      const capabilities = exists
+        ? current.capabilities.filter((candidate) => candidate !== capability)
+        : [...current.capabilities, capability];
+      return { ...current, capabilities };
+    });
+    setError(null);
+  };
+
+  const submitListing = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const trimmedName = form.displayName.trim();
-    const trimmedOwner = form.ownerName.trim();
-    const trimmedContact = form.contact.trim();
-    const trimmedDescription = form.description.trim();
+    const trimmedOwner = form.ownerUserId.trim();
+    const endpointUrl = form.endpointUrl.trim();
+    const telegramChatId = form.telegramChatId.trim();
 
-    if (!trimmedName || !trimmedOwner || !trimmedContact || !trimmedDescription) {
-      setError("Complete the worker name, owner, contact, and description.");
+    if (!trimmedName || !trimmedOwner) {
+      setError("Worker name and owner user ID are required.");
       return;
     }
 
-    if (!Number.isFinite(price) || price <= 0) {
+    if (form.capabilities.length === 0) {
+      setError("Select at least one capability.");
+      return;
+    }
+
+    if (!Number.isFinite(basePrice) || basePrice <= 0) {
       setError("Base price must be a positive number of sats.");
       return;
     }
 
-    if (form.type === "agent" && !isProbablyUrl(trimmedContact)) {
-      setError("Agent workers need an endpoint URL.");
+    if (!Number.isFinite(stake) || stake < 0) {
+      setError("Stake must be zero or a positive number of sats.");
       return;
     }
 
-    if (form.type === "human" && !trimmedContact.startsWith("telegram:")) {
-      setError("Human workers need a telegram: contact handle.");
+    if (form.type === "agent" && !isProbablyUrl(endpointUrl)) {
+      setError("Agent workers need a valid endpoint URL.");
       return;
     }
 
-    const worker: MarketplaceWorker = {
-      ...previewWorker,
-      id: `worker_user_${Date.now()}`,
-      displayName: trimmedName,
-      basePriceSats: price,
-      description: trimmedDescription,
-      contact: trimmedContact,
-      listedAt: new Date().toISOString(),
-      reason: `Listed by ${trimmedOwner}.`
-    };
+    if (form.type === "human" && !telegramChatId) {
+      setError("Human workers need a Telegram chat ID.");
+      return;
+    }
 
-    saveUserWorker(worker);
-    setPublished(worker);
-    setForm(initialState);
+    const payload: ListWorkerRequest =
+      form.type === "agent"
+        ? {
+            type: "agent",
+            endpoint_url: endpointUrl,
+            owner_user_id: trimmedOwner,
+            display_name: trimmedName,
+            capability_tags: form.capabilities,
+            base_price_sats: basePrice,
+            stake_sats: stake
+          }
+        : {
+            type: "human",
+            telegram_chat_id: telegramChatId,
+            owner_user_id: trimmedOwner,
+            display_name: trimmedName,
+            capability_tags: form.capabilities,
+            base_price_sats: basePrice,
+            stake_sats: stake
+          };
+
+    setIsSubmitting(true);
+    setError(null);
+    try {
+      const response = await listWorker(payload);
+      setPublished(response.worker);
+      setForm(initialState);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Marketplace rejected the worker listing.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -115,11 +149,11 @@ export function WorkerListingForm() {
           <div>
             <div className="mb-2 flex items-center gap-2">
               <span className="inline-flex h-2 w-2 rounded-full bg-primary" />
-              <span className="section-label">Supplier intake</span>
+              <span className="section-label">Marketplace registration</span>
             </div>
             <h1 className="text-2xl font-semibold">List a worker</h1>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-              Publish an agent endpoint or human supplier into the marketplace directory for demo routing.
+              Register an agent endpoint or human Telegram worker through the marketplace service.
             </p>
           </div>
           <Link
@@ -136,7 +170,7 @@ export function WorkerListingForm() {
             <div className="flex items-start gap-3">
               <CheckCircle2 className="mt-0.5 h-5 w-5 text-success" />
               <div>
-                <p className="text-sm font-semibold">{published.displayName} is listed</p>
+                <p className="text-sm font-semibold">{published.display_name} is active</p>
                 <p className="mono mt-1 text-xs text-muted-foreground">{published.id}</p>
               </div>
             </div>
@@ -154,7 +188,7 @@ export function WorkerListingForm() {
               </div>
               <div>
                 <h2 className="text-lg font-semibold">Worker details</h2>
-                <p className="text-sm text-muted-foreground">New listings appear in the marketplace on this machine.</p>
+                <p className="text-sm text-muted-foreground">The marketplace will validate endpoint or Telegram reachability.</p>
               </div>
             </div>
 
@@ -170,8 +204,8 @@ export function WorkerListingForm() {
               <Field label="Owner user ID">
                 <input
                   className="form-control mono"
-                  onChange={(event) => updateForm("ownerName", event.target.value)}
-                  value={form.ownerName}
+                  onChange={(event) => updateForm("ownerUserId", event.target.value)}
+                  value={form.ownerUserId}
                 />
               </Field>
               <Field label="Worker type">
@@ -192,19 +226,6 @@ export function WorkerListingForm() {
                   </button>
                 </div>
               </Field>
-              <Field label="Primary capability">
-                <select
-                  className="form-control"
-                  onChange={(event) => updateForm("capability", event.target.value as CapabilityTag)}
-                  value={form.capability}
-                >
-                  {workerCapabilityOptions.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </Field>
               <Field label="Base price">
                 <div className="relative">
                   <input
@@ -219,21 +240,45 @@ export function WorkerListingForm() {
                   </span>
                 </div>
               </Field>
-              <Field label={form.type === "agent" ? "Endpoint URL" : "Telegram contact"}>
+              <Field label="Stake">
+                <div className="relative">
+                  <input
+                    className="form-control mono pr-14"
+                    min={0}
+                    onChange={(event) => updateForm("stakeSats", event.target.value)}
+                    type="number"
+                    value={form.stakeSats}
+                  />
+                  <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
+                    sats
+                  </span>
+                </div>
+              </Field>
+              <Field label={form.type === "agent" ? "Endpoint URL" : "Telegram chat ID"}>
                 <input
                   className="form-control"
-                  onChange={(event) => updateForm("contact", event.target.value)}
-                  placeholder={form.type === "agent" ? "https://supplier.example/mcp" : "telegram:@operator"}
-                  value={form.contact}
+                  onChange={(event) => updateForm(form.type === "agent" ? "endpointUrl" : "telegramChatId", event.target.value)}
+                  placeholder={form.type === "agent" ? "https://supplier.example/service" : "000000000"}
+                  value={form.type === "agent" ? form.endpointUrl : form.telegramChatId}
                 />
               </Field>
-              <Field className="md:col-span-2" label="Listing description">
-                <textarea
-                  className="form-control min-h-28 resize-y leading-6"
-                  onChange={(event) => updateForm("description", event.target.value)}
-                  placeholder="Summarizes research notes and returns verifier-ready bullet points."
-                  value={form.description}
-                />
+              <Field className="md:col-span-2" label="Capabilities">
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {workerCapabilityOptions.map((option) => {
+                    const checked = form.capabilities.includes(option.value);
+                    return (
+                      <label
+                        className={`flex min-h-10 items-center gap-2 rounded-md border px-3 text-sm transition ${
+                          checked ? "border-primary/45 bg-primary/10 text-foreground" : "border-border-subtle bg-background text-muted-foreground"
+                        }`}
+                        key={option.value}
+                      >
+                        <input checked={checked} onChange={() => toggleCapability(option.value)} type="checkbox" />
+                        {option.label}
+                      </label>
+                    );
+                  })}
+                </div>
               </Field>
             </div>
 
@@ -244,11 +289,12 @@ export function WorkerListingForm() {
                 Cancel
               </Link>
               <button
-                className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-primary px-4 text-sm font-semibold text-primary-foreground transition hover:brightness-110 focus:outline-none focus:ring-2 focus:ring-primary/50"
+                className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-primary px-4 text-sm font-semibold text-primary-foreground transition hover:brightness-110 focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:opacity-60"
+                disabled={isSubmitting}
                 type="submit"
               >
                 <Send className="h-4 w-4" />
-                Publish listing
+                {isSubmitting ? "Publishing" : "Publish listing"}
               </button>
             </div>
           </form>
@@ -259,25 +305,26 @@ export function WorkerListingForm() {
                 <RadioTower className="h-5 w-5 text-primary" />
               </div>
               <div>
-                <h2 className="text-lg font-semibold">Preview</h2>
-                <p className="text-sm text-muted-foreground">Marketplace row</p>
+                <h2 className="text-lg font-semibold">Payload preview</h2>
+                <p className="text-sm text-muted-foreground">Marketplace contract</p>
               </div>
             </div>
 
             <div className="space-y-5">
               <div>
                 <div className="mb-2 flex items-center gap-2">
-                  {previewWorker.type === "agent" ? <Bot className="h-4 w-4 text-primary" /> : <Users className="h-4 w-4 text-primary" />}
-                  <p className="text-sm font-semibold">{previewWorker.displayName}</p>
-                  <span className="rounded-md border border-primary/35 bg-primary/10 px-2 py-0.5 text-xs text-primary">New</span>
+                  {preview.type === "agent" ? <Bot className="h-4 w-4 text-primary" /> : <Users className="h-4 w-4 text-primary" />}
+                  <p className="text-sm font-semibold">{preview.displayName}</p>
                 </div>
-                <p className="text-sm leading-6 text-muted-foreground">{previewWorker.description}</p>
+                <p className="mono text-xs leading-5 text-muted-foreground">
+                  type={preview.type} price={preview.basePrice} sats
+                </p>
               </div>
 
               <div className="grid gap-3 text-sm">
-                <PreviewLine icon={ShieldCheck} label="Capability" value={getCapabilityLabel(previewWorker.capabilities[0])} />
-                <PreviewLine icon={PlusCircle} label="Base price" value={`${previewWorker.basePriceSats || 0} sats`} />
-                <PreviewLine icon={LinkIcon} label="Contact" value={previewWorker.contact} />
+                <PreviewLine icon={ShieldCheck} label="Capabilities" value={preview.capabilities.map(getCapabilityLabel).join(", ")} />
+                <PreviewLine icon={PlusCircle} label="Base price" value={`${preview.basePrice || 0} sats`} />
+                <PreviewLine icon={LinkIcon} label="Contact" value={preview.contact} />
               </div>
             </div>
           </aside>
@@ -318,7 +365,7 @@ function PreviewLine({
       <Icon className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
       <div className="min-w-0">
         <p className="text-xs text-muted-foreground">{label}</p>
-        <p className="truncate text-sm text-foreground">{value}</p>
+        <p className="truncate text-sm text-foreground">{value || "None"}</p>
       </div>
     </div>
   );

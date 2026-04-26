@@ -1,6 +1,6 @@
 "use client";
 
-import { Bot, CircleDollarSign, ListChecks, RadioTower, TerminalSquare, Users } from "lucide-react";
+import { Bot, CircleDollarSign, RadioTower, TerminalSquare, Users } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ChatPanel } from "./ChatPanel";
@@ -9,25 +9,49 @@ import { PlanTrace } from "./PlanTrace";
 import { RatingPrompt } from "./RatingPrompt";
 import { StatusBadge } from "./StatusBadge";
 import { TreasuryPanel } from "./TreasuryPanel";
-import { DEFAULT_PROMPT, DEMO_WALLET_AVAILABLE_SATS } from "@/lib/demo-data";
-import { confirmJob, createJob, getJob } from "@/lib/orchestrator";
-import type { JobSnapshot, RoutePreference } from "@/lib/types";
+import { getServiceHealth } from "@/lib/hub";
+import { confirmJob, createJob, getJob, clarifyJob } from "@/lib/orchestrator";
+import { DEFAULT_PROMPT } from "@/lib/workers";
+import type { JobSnapshot, ServiceHealthItem, ServiceHealthResponse } from "@/lib/types";
 
 const terminalStatuses = new Set(["completed", "failed", "cancelled"]);
+const buyerUserId = process.env.NEXT_PUBLIC_BUYER_USER_ID ?? "user_demo_buyer";
 
 export function JobConsole({ initialJobId }: { initialJobId?: string }) {
   const [prompt, setPrompt] = useState(DEFAULT_PROMPT);
-  const [routePreference, setRoutePreference] = useState<RoutePreference>("balanced");
   const [jobId, setJobId] = useState(initialJobId ?? "");
   const [snapshot, setSnapshot] = useState<JobSnapshot | null>(null);
+  const [health, setHealth] = useState<ServiceHealthResponse | null>(null);
   const [isLaunching, setIsLaunching] = useState(false);
-  const [isConfirming, setIsConfirming] = useState(false);
+  const [isResponding, setIsResponding] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const loadJob = useCallback(async (id: string) => {
     const nextSnapshot = await getJob(id);
     setSnapshot(nextSnapshot);
   }, []);
+
+  const loadHealth = useCallback(async () => {
+    try {
+      setHealth(await getServiceHealth());
+    } catch (caught) {
+      setHealth({
+        ok: false,
+        services: {
+          orchestrator: { ok: false, detail: caught instanceof Error ? caught.message : "Unavailable" },
+          marketplace: { ok: false, detail: "Unavailable" },
+          hub: { ok: false, detail: "Unavailable" },
+          lexe: { ok: false, detail: "Unavailable" }
+        }
+      });
+    }
+  }, []);
+
+  useEffect(() => {
+    loadHealth();
+    const interval = window.setInterval(loadHealth, 10_000);
+    return () => window.clearInterval(interval);
+  }, [loadHealth]);
 
   useEffect(() => {
     if (!initialJobId) {
@@ -55,7 +79,7 @@ export function JobConsole({ initialJobId }: { initialJobId?: string }) {
     setError(null);
     try {
       const created = await createJob({
-        user_id: "user_demo_buyer",
+        user_id: buyerUserId,
         prompt: prompt.trim()
       });
       setJobId(created.job_id);
@@ -74,7 +98,7 @@ export function JobConsole({ initialJobId }: { initialJobId?: string }) {
         return;
       }
 
-      setIsConfirming(true);
+      setIsResponding(true);
       setError(null);
       try {
         await confirmJob(jobId, confirmed);
@@ -82,7 +106,27 @@ export function JobConsole({ initialJobId }: { initialJobId?: string }) {
       } catch (caught) {
         setError(caught instanceof Error ? caught.message : "Unable to confirm job");
       } finally {
-        setIsConfirming(false);
+        setIsResponding(false);
+      }
+    },
+    [jobId, loadJob]
+  );
+
+  const handleClarify = useCallback(
+    async (answer: string) => {
+      if (!jobId) {
+        return;
+      }
+
+      setIsResponding(true);
+      setError(null);
+      try {
+        await clarifyJob(jobId, answer);
+        await loadJob(jobId);
+      } catch (caught) {
+        setError(caught instanceof Error ? caught.message : "Unable to submit clarification");
+      } finally {
+        setIsResponding(false);
       }
     },
     [jobId, loadJob]
@@ -107,19 +151,18 @@ export function JobConsole({ initialJobId }: { initialJobId?: string }) {
           <RailItem active icon={TerminalSquare} label="Request" />
           <RailLink href="/workers" icon={Users} label="Workers" />
           <RailLink href="/workers/new" icon={RadioTower} label="List worker" />
-          <RailItem icon={ListChecks} label="Smoke test" />
         </nav>
 
         <div className="mt-8 rounded-md border border-border-subtle bg-background p-3">
-          <p className="section-label mb-2">System</p>
+          <p className="section-label mb-2">Services</p>
           <div className="space-y-2 text-xs text-muted-foreground">
-            <div className="flex items-center justify-between">
-              <span>Mock orchestration</span>
-              <span className="text-success">ready</span>
-            </div>
-            <div className="flex items-center justify-between">
+            <ServiceLine item={health?.services.orchestrator} label="Orchestrator" />
+            <ServiceLine item={health?.services.marketplace} label="Marketplace" />
+            <ServiceLine item={health?.services.hub} label="Hub" />
+            <ServiceLine item={health?.services.lexe} label="Lexe" />
+            <div className="flex items-center justify-between border-t border-border-subtle pt-2">
               <span>Wallet balance</span>
-              <span className="mono">{DEMO_WALLET_AVAILABLE_SATS}</span>
+              <span className="mono">{formatMaybeSats(snapshot?.debug?.wallet_balance_sats)}</span>
             </div>
           </div>
         </div>
@@ -129,7 +172,7 @@ export function JobConsole({ initialJobId }: { initialJobId?: string }) {
         <header className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-border-subtle pb-4">
           <div>
             <div className="mb-2 flex items-center gap-2">
-              <span className="inline-flex h-2 w-2 rounded-full bg-success" />
+              <span className={`inline-flex h-2 w-2 rounded-full ${health?.ok === false ? "bg-danger" : "bg-success"}`} />
               <span className="section-label">Quality-aware routing</span>
             </div>
             <h1 className="text-2xl font-semibold">AgentMkt Routing Desk</h1>
@@ -148,12 +191,10 @@ export function JobConsole({ initialJobId }: { initialJobId?: string }) {
             isLaunching={isLaunching}
             onLaunch={launchJob}
             onPromptChange={setPrompt}
-            onRoutePreferenceChange={setRoutePreference}
             prompt={prompt}
-            routePreference={routePreference}
             snapshot={snapshot}
           />
-          <PlanTrace routePreference={routePreference} snapshot={snapshot} />
+          <PlanTrace snapshot={snapshot} />
           <div className="space-y-4">
             <TreasuryPanel snapshot={snapshot} />
             <RatingPrompt snapshot={snapshot} />
@@ -164,7 +205,7 @@ export function JobConsole({ initialJobId }: { initialJobId?: string }) {
               </div>
               <details className="group">
                 <summary className="cursor-pointer text-sm text-muted-foreground transition hover:text-foreground">
-                  Show orchestration logs
+                  Show orchestration state
                 </summary>
                 <div className="mt-3 space-y-2">
                   {traceLines.map((line) => (
@@ -179,7 +220,7 @@ export function JobConsole({ initialJobId }: { initialJobId?: string }) {
         </div>
       </main>
 
-      <PlanPreview isConfirming={isConfirming} onConfirm={handleConfirm} snapshot={snapshot} />
+      <PlanPreview isResponding={isResponding} onClarify={handleClarify} onConfirm={handleConfirm} snapshot={snapshot} />
     </div>
   );
 }
@@ -206,15 +247,41 @@ function RailLink({ href, icon: Icon, label }: { href: string; icon: typeof Bot;
   );
 }
 
+function ServiceLine({ item, label }: { item?: ServiceHealthItem; label: string }) {
+  const ok = item?.ok === true;
+  const unavailable = !item;
+
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <span>{label}</span>
+      <span className={ok ? "text-success" : unavailable ? "text-muted-foreground" : "text-danger"}>
+        {ok ? "ready" : unavailable ? "checking" : "down"}
+      </span>
+    </div>
+  );
+}
+
 function buildTraceLines(snapshot: JobSnapshot | null): string[] {
   if (!snapshot) {
-    return ["waiting for POST /jobs"];
+    return ["waiting for POST /api/jobs"];
   }
 
   const lines = [
     `${snapshot.job.id} status=${snapshot.job.status}`,
-    `wallet_balance=${snapshot.debug?.wallet_balance_sats ?? "unknown"} reserved=${snapshot.job.locked_sats} settled=${snapshot.job.spent_sats}`
+    `wallet_balance=${snapshot.debug?.wallet_balance_sats ?? "unknown"} held=${snapshot.job.locked_sats} settled=${snapshot.job.spent_sats}`
   ];
+
+  if (snapshot.hub_bolt11) {
+    lines.push(`hub_bolt11=${snapshot.hub_bolt11}`);
+  }
+
+  if (snapshot.debug?.cfo_verdict) {
+    lines.push(`cfo_verdict=${snapshot.debug.cfo_verdict.kind}`);
+  }
+
+  if (snapshot.debug?.error) {
+    lines.push(`error=${snapshot.debug.error}`);
+  }
 
   if (snapshot.plan) {
     lines.push(`plan=${snapshot.plan.id} estimate=${snapshot.plan.total_estimate_sats}`);
@@ -223,9 +290,13 @@ function buildTraceLines(snapshot: JobSnapshot | null): string[] {
     }
   }
 
-  if (snapshot.job.status === "completed") {
-    lines.push("verifier=PASS settle=confirmed refund=available");
+  if (snapshot.job.status === "completed" && snapshot.final_output) {
+    lines.push("final_output=ready");
   }
 
   return lines;
+}
+
+function formatMaybeSats(value: number | null | undefined) {
+  return typeof value === "number" ? `${value} sats` : "unavailable";
 }

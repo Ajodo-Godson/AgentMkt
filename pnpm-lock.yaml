@@ -177,6 +177,9 @@ importers:
 
   apps/web:
     dependencies:
+      '@agentmkt/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
       '@hono/node-server':
         specifier: ^1.13.8
         version: 1.19.14(hono@4.12.15)
