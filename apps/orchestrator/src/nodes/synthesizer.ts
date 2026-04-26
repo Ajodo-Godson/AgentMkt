@@ -10,6 +10,7 @@ import { jobStore } from "../store.js";
 import { logger } from "../logger.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
+const useMocks = () => process.env.USE_MOCKS === "true";
 
 const systemPrompt = readFileSync(
   join(__dirname, "../../prompts/synthesizer-system.txt"),
@@ -75,11 +76,13 @@ export async function synthesizerNode(
 
   // Refund any unspent topup balance — cancel the topup hold if still available
   try {
-    const balance = await hub.jobBalance(job.id);
-    if (balance.available_sats > 0) {
-      log.info({ available_sats: balance.available_sats }, "Refunding unspent balance");
-      // No direct refund endpoint per spec; the hub manages this on its side.
-      // TODO(P1): coordinate with P2 to confirm the refund flow for leftover sats.
+    if (!useMocks()) {
+      const balance = await hub.jobBalance(job.id);
+      if (balance.available_sats > 0) {
+        log.info({ available_sats: balance.available_sats }, "Refunding unspent balance");
+        // No direct refund endpoint per spec; the hub manages this on its side.
+        // TODO(P1): coordinate with P2 to confirm the refund flow for leftover sats.
+      }
     }
   } catch (err) {
     log.warn({ err }, "Balance check failed");
