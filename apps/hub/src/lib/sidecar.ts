@@ -64,7 +64,13 @@ export function startSidecar(opts: StartSidecarOpts = {}): ChildProcess | null {
   let listenAddr: string | undefined;
   try {
     const u = new URL(env.LEXE_SIDECAR_URL);
-    if (u.host) listenAddr = u.host;
+    if (u.host) {
+      // The sidecar's --listen-addr parser only accepts IP:port (no hostnames).
+      // Resolve common loopback hostnames to 127.0.0.1 so configs that use
+      // `localhost` still work.
+      const host = u.hostname === "localhost" ? "127.0.0.1" : u.hostname;
+      listenAddr = `${host}:${u.port || "5393"}`;
+    }
   } catch {
     // ignore
   }
