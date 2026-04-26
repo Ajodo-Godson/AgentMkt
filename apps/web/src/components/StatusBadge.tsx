@@ -4,17 +4,17 @@ import type { JobStatus, Step } from "@/lib/types";
 type StatusKind = JobStatus | Step["status"];
 
 const statusConfig: Record<string, { label: string; tone: string; icon: typeof CircleDashed }> = {
-  intake: { label: "Intake", tone: "border-info/35 text-info", icon: CircleDashed },
-  planning: { label: "Planning", tone: "border-primary/45 text-primary", icon: Loader2 },
-  awaiting_user: { label: "Approval", tone: "border-warning/45 text-warning", icon: AlertTriangle },
-  executing: { label: "Executing", tone: "border-info/35 text-info", icon: Loader2 },
-  completed: { label: "Ready", tone: "border-success/40 text-success", icon: CheckCircle2 },
-  failed: { label: "Failed", tone: "border-danger/45 text-danger", icon: XCircle },
-  cancelled: { label: "Cancelled", tone: "border-muted-foreground/35 text-muted-foreground", icon: XCircle },
-  pending: { label: "Pending", tone: "border-muted-foreground/25 text-muted-foreground", icon: Clock },
-  running: { label: "Running", tone: "border-primary/45 text-primary", icon: Loader2 },
-  succeeded: { label: "Passed", tone: "border-success/40 text-success", icon: CheckCircle2 },
-  skipped: { label: "Skipped", tone: "border-muted-foreground/35 text-muted-foreground", icon: CircleDashed }
+  intake: { label: "Intake", tone: "border-info/25 bg-info/5 text-info", icon: CircleDashed },
+  planning: { label: "Planning", tone: "border-primary/30 bg-primary/5 text-primary", icon: Loader2 },
+  awaiting_user: { label: "Approval", tone: "border-warning/30 bg-warning/10 text-warning", icon: AlertTriangle },
+  executing: { label: "Executing", tone: "border-info/25 bg-info/5 text-info", icon: Loader2 },
+  completed: { label: "Ready", tone: "border-success/30 bg-success/10 text-success", icon: CheckCircle2 },
+  failed: { label: "Failed", tone: "border-danger/30 bg-danger/10 text-danger", icon: XCircle },
+  cancelled: { label: "Cancelled", tone: "border-muted-foreground/20 bg-muted text-muted-foreground", icon: XCircle },
+  pending: { label: "Pending", tone: "border-muted-foreground/20 bg-muted text-muted-foreground", icon: Clock },
+  running: { label: "Running", tone: "border-primary/30 bg-primary/5 text-primary", icon: Loader2 },
+  succeeded: { label: "Passed", tone: "border-success/30 bg-success/10 text-success", icon: CheckCircle2 },
+  skipped: { label: "Skipped", tone: "border-muted-foreground/20 bg-muted text-muted-foreground", icon: CircleDashed }
 };
 
 export function StatusBadge({ status }: { status: StatusKind }) {

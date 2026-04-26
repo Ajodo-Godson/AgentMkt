@@ -60,13 +60,13 @@ export function RatingPrompt({ snapshot }: { snapshot: JobSnapshot | null }) {
     <section className="panel-strong p-4">
       <div className="mb-4">
         <p className="section-label">Closeout</p>
-        <h2 className="text-lg font-semibold">Rate routed workers</h2>
+        <h2 className="text-lg font-semibold">Rate workers</h2>
       </div>
       <div className="space-y-3">
         {steps.map((step) => {
           const state = ratings[step.id] ?? {};
           return (
-            <div className="rounded-md border border-border-subtle bg-background p-3" key={step.id}>
+            <div className="rounded-md border border-border-subtle bg-card p-3" key={step.id}>
               <p className="mb-1 text-sm font-medium">{step.primary_worker_id}</p>
               <p className="mb-2 text-xs text-muted-foreground">{getCapabilityLabel(step.capability_tag)}</p>
               <div className="flex gap-1">

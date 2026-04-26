@@ -1,20 +1,20 @@
 @import "tailwindcss";
 
 :root {
-  --background: oklch(0.155 0.007 75);
-  --foreground: oklch(0.94 0.006 75);
-  --card: oklch(0.18 0.008 75);
-  --card-elevated: oklch(0.215 0.009 75);
-  --muted: oklch(0.245 0.009 75);
-  --muted-foreground: oklch(0.68 0.01 75);
-  --border: oklch(0.315 0.011 75);
-  --border-subtle: oklch(0.265 0.01 75);
-  --primary: oklch(0.76 0.14 78);
-  --primary-foreground: oklch(0.18 0.02 75);
-  --success: oklch(0.7 0.14 150);
-  --danger: oklch(0.64 0.16 28);
-  --warning: oklch(0.76 0.14 78);
-  --info: oklch(0.72 0.1 250);
+  --background: oklch(0.982 0.006 260);
+  --foreground: oklch(0.245 0.011 260);
+  --card: oklch(0.997 0.003 260);
+  --card-elevated: oklch(0.999 0.003 260);
+  --muted: oklch(0.955 0.007 260);
+  --muted-foreground: oklch(0.535 0.017 260);
+  --border: oklch(0.875 0.011 260);
+  --border-subtle: oklch(0.918 0.009 260);
+  --primary: oklch(0.61 0.18 274);
+  --primary-foreground: oklch(0.992 0.004 260);
+  --success: oklch(0.55 0.13 151);
+  --danger: oklch(0.56 0.18 28);
+  --warning: oklch(0.64 0.16 78);
+  --info: oklch(0.56 0.15 250);
   --radius: 8px;
 }
 
@@ -44,12 +44,15 @@
 html {
   background: var(--background);
   color: var(--foreground);
+  color-scheme: light;
 }
 
 body {
   min-height: 100vh;
   margin: 0;
   background: var(--background);
+  color: var(--foreground);
+  text-rendering: optimizeLegibility;
 }
 
 button,
@@ -72,7 +75,7 @@ button:disabled {
   min-height: 40px;
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius);
-  background: var(--background);
+  background: var(--card);
   color: var(--foreground);
   padding: 0.625rem 0.75rem;
   font-size: 0.875rem;
@@ -88,24 +91,24 @@ button:disabled {
 }
 
 .form-control:focus {
-  border-color: oklch(0.76 0.14 78 / 0.6);
-  box-shadow: 0 0 0 2px oklch(0.76 0.14 78 / 0.18);
+  border-color: oklch(0.61 0.18 274 / 0.62);
+  box-shadow: 0 0 0 3px oklch(0.61 0.18 274 / 0.13);
 }
 
 ::selection {
-  background: oklch(0.76 0.14 78 / 0.24);
+  background: oklch(0.61 0.18 274 / 0.18);
 }
 
 .console-grid {
   display: grid;
-  grid-template-columns: 232px minmax(0, 1fr);
+  grid-template-columns: 248px minmax(0, 1fr);
   min-height: 100vh;
 }
 
 .job-grid {
   display: grid;
-  grid-template-columns: minmax(320px, 0.76fr) minmax(460px, 1.32fr) minmax(300px, 0.72fr);
-  gap: 16px;
+  grid-template-columns: minmax(320px, 0.78fr) minmax(460px, 1.28fr) minmax(300px, 0.72fr);
+  gap: 18px;
   align-items: start;
 }
 
@@ -113,13 +116,16 @@ button:disabled {
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius);
   background: var(--card);
+  box-shadow: 0 1px 2px oklch(0.3 0.02 260 / 0.05);
 }
 
 .panel-strong {
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-subtle);
   border-radius: var(--radius);
   background: var(--card-elevated);
-  box-shadow: 0 18px 48px oklch(0.08 0.004 75 / 0.22);
+  box-shadow:
+    0 1px 2px oklch(0.3 0.02 260 / 0.07),
+    0 18px 42px oklch(0.3 0.03 260 / 0.08);
 }
 
 .mono {
@@ -140,7 +146,7 @@ button:disabled {
   gap: 2px;
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius);
-  background: var(--background);
+  background: var(--muted);
   padding: 2px;
 }
 
@@ -158,11 +164,13 @@ button:disabled {
 
 .segmented-control button:hover {
   color: var(--foreground);
+  background: oklch(0.99 0.004 260);
 }
 
 .segmented-control button.is-selected {
-  background: var(--muted);
+  background: var(--card);
   color: var(--foreground);
+  box-shadow: 0 1px 2px oklch(0.3 0.02 260 / 0.08);
 }
 
 .segmented-control-two {
@@ -176,7 +184,7 @@ button:disabled {
 .status-pulse::after {
   position: absolute;
   inset: -3px;
-  border: 1px solid oklch(0.76 0.14 78 / 0.35);
+  border: 1px solid oklch(0.61 0.18 274 / 0.28);
   border-radius: inherit;
   content: "";
   opacity: 0;
@@ -204,7 +212,7 @@ button:disabled {
   inset: 0;
   content: "";
   transform: translateX(-100%);
-  background: linear-gradient(90deg, transparent, oklch(0.76 0.14 78 / 0.12), transparent);
+  background: linear-gradient(90deg, transparent, oklch(0.61 0.18 274 / 0.1), transparent);
   animation: scan 1.8s ease-out infinite;
 }
 
@@ -232,7 +240,7 @@ button:disabled {
   width: 32px;
   height: 32px;
   margin-top: 8px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-subtle);
   border-radius: 999px;
   color: var(--muted-foreground);
   background: var(--background);
@@ -240,8 +248,8 @@ button:disabled {
 
 .route-step.is-active .route-step-marker {
   color: var(--primary);
-  border-color: oklch(0.76 0.14 78 / 0.5);
-  background: oklch(0.76 0.14 78 / 0.08);
+  border-color: oklch(0.61 0.18 274 / 0.42);
+  background: oklch(0.61 0.18 274 / 0.07);
 }
 
 .worker-table {
@@ -266,11 +274,11 @@ button:disabled {
   color: var(--muted-foreground);
   font-size: 0.75rem;
   font-weight: 500;
-  background: var(--card);
+  background: var(--muted);
 }
 
 .worker-row.is-selected {
-  background: oklch(0.76 0.14 78 / 0.07);
+  background: oklch(0.61 0.18 274 / 0.06);
 }
 
 .worker-row-mobile {

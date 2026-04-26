@@ -60,7 +60,7 @@ export function PlanTrace({ snapshot }: { snapshot: JobSnapshot | null }) {
           <div>
             <p className="section-label">Route</p>
             <h2 className="text-lg font-semibold">Execution plan</h2>
-            <p className="mt-1 text-xs text-muted-foreground">Built by the orchestrator from discovered workers and wallet state.</p>
+            <p className="mt-1 text-xs text-muted-foreground">Orchestrator plan, selected workers, and step status.</p>
           </div>
           {snapshot ? <StatusBadge status={snapshot.job.status} /> : null}
         </div>
@@ -77,7 +77,7 @@ export function PlanTrace({ snapshot }: { snapshot: JobSnapshot | null }) {
           </div>
         )}
 
-        <div className="rounded-md border border-border-subtle bg-background">
+        <div className="rounded-md border border-border-subtle bg-card">
           <div className="flex items-center justify-between border-b border-border-subtle px-3 py-2">
             <div>
               <p className="text-sm font-medium">Worker alternatives</p>
@@ -109,7 +109,7 @@ export function PlanTrace({ snapshot }: { snapshot: JobSnapshot | null }) {
               </div>
             ) : (
               <p className="p-4 text-sm text-muted-foreground">
-                {activeStep ? "No marketplace candidates returned for this capability." : "Submit a request to compare candidate workers."}
+                {activeStep ? "No candidates returned for this capability." : "Worker alternatives appear after a route is planned."}
               </p>
             )}
           </div>
@@ -124,7 +124,7 @@ function EmptyRoute() {
     <div className="rounded-md border border-dashed border-border p-8 text-center">
       <GitBranch className="mx-auto mb-3 h-6 w-6 text-muted-foreground" />
       <p className="text-sm font-medium">No route yet</p>
-      <p className="mt-1 text-sm text-muted-foreground">AgentMkt will build a route after you submit a request.</p>
+      <p className="mt-1 text-sm text-muted-foreground">Start a route to see planned steps.</p>
     </div>
   );
 }
@@ -138,7 +138,7 @@ function StepRow({ step, index, active }: { step: Step; index: number; active: b
       <div className="route-step-marker">
         <Icon className="h-4 w-4" />
       </div>
-      <div className="min-w-0 flex-1 rounded-md border border-border-subtle bg-card p-3">
+      <div className="min-w-0 flex-1 rounded-md border border-border-subtle bg-card p-3 shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="min-w-0">
             <p className="text-sm font-medium">

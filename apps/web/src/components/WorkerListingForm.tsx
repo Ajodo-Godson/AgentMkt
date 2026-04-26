@@ -138,26 +138,26 @@ export function WorkerListingForm() {
   };
 
   return (
-    <main className="min-h-screen bg-background px-4 py-6 text-foreground sm:px-6 lg:px-8">
+    <main className="min-h-screen bg-background px-4 py-6 text-foreground sm:px-6 lg:px-10">
       <div className="mx-auto max-w-6xl">
         <Link className="mb-7 inline-flex items-center gap-2 text-sm text-muted-foreground transition hover:text-foreground" href="/">
           <ArrowLeft className="h-4 w-4" />
-          Mission control
+          Routing desk
         </Link>
 
-        <header className="mb-6 flex flex-col gap-4 border-b border-border-subtle pb-5 lg:flex-row lg:items-end lg:justify-between">
+        <header className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <div className="mb-2 flex items-center gap-2">
               <span className="inline-flex h-2 w-2 rounded-full bg-primary" />
               <span className="section-label">Marketplace registration</span>
             </div>
-            <h1 className="text-2xl font-semibold">List a worker</h1>
+            <h1 className="text-3xl font-semibold tracking-[-0.01em]">List a worker</h1>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-              Register an agent endpoint or human Telegram worker through the marketplace service.
+              Register an agent endpoint or human Telegram worker with marketplace validation.
             </p>
           </div>
           <Link
-            className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-border bg-muted px-4 text-sm font-medium text-foreground transition hover:bg-card-elevated focus:outline-none focus:ring-2 focus:ring-primary/40"
+            className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-border-subtle bg-card px-4 text-sm font-medium text-foreground shadow-sm transition hover:bg-muted focus:outline-none focus:ring-2 focus:ring-primary/20"
             href="/workers"
           >
             <Users className="h-4 w-4" />
@@ -183,12 +183,12 @@ export function WorkerListingForm() {
         <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
           <form className="panel-strong p-5" onSubmit={submitListing}>
             <div className="mb-5 flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-md border border-border bg-muted">
+              <div className="flex h-10 w-10 items-center justify-center rounded-md border border-primary/20 bg-primary/5">
                 <PlusCircle className="h-5 w-5 text-primary" />
               </div>
               <div>
                 <h2 className="text-lg font-semibold">Worker details</h2>
-                <p className="text-sm text-muted-foreground">The marketplace will validate endpoint or Telegram reachability.</p>
+                <p className="text-sm text-muted-foreground">Validation runs through the marketplace service.</p>
               </div>
             </div>
 
@@ -269,7 +269,7 @@ export function WorkerListingForm() {
                     return (
                       <label
                         className={`flex min-h-10 items-center gap-2 rounded-md border px-3 text-sm transition ${
-                          checked ? "border-primary/45 bg-primary/10 text-foreground" : "border-border-subtle bg-background text-muted-foreground"
+                          checked ? "border-primary/35 bg-primary/10 text-foreground" : "border-border-subtle bg-card text-muted-foreground"
                         }`}
                         key={option.value}
                       >
@@ -301,12 +301,12 @@ export function WorkerListingForm() {
 
           <aside className="panel p-5">
             <div className="mb-5 flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-md border border-border bg-muted">
+              <div className="flex h-10 w-10 items-center justify-center rounded-md border border-primary/20 bg-primary/5">
                 <RadioTower className="h-5 w-5 text-primary" />
               </div>
               <div>
-                <h2 className="text-lg font-semibold">Payload preview</h2>
-                <p className="text-sm text-muted-foreground">Marketplace contract</p>
+                <h2 className="text-lg font-semibold">Listing preview</h2>
+                <p className="text-sm text-muted-foreground">Marketplace payload</p>
               </div>
             </div>
 
@@ -361,7 +361,7 @@ function PreviewLine({
   value: string;
 }) {
   return (
-    <div className="flex min-w-0 items-start gap-3 rounded-md border border-border-subtle bg-background p-3">
+    <div className="flex min-w-0 items-start gap-3 rounded-md border border-border-subtle bg-card p-3">
       <Icon className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
       <div className="min-w-0">
         <p className="text-xs text-muted-foreground">{label}</p>

@@ -52,15 +52,15 @@ export function TreasuryPanel({ snapshot }: { snapshot: JobSnapshot | null }) {
     <section className="panel-strong wallet-panel p-4">
       <div className="mb-4 flex items-center justify-between">
         <div>
-          <p className="section-label">Wallet</p>
-          <h2 className="text-lg font-semibold">Payment state</h2>
+          <p className="section-label">Payments</p>
+          <h2 className="text-lg font-semibold">Hub balance</h2>
         </div>
-        <div className="flex h-9 w-9 items-center justify-center rounded-md border border-border bg-muted">
+        <div className="flex h-9 w-9 items-center justify-center rounded-md border border-border-subtle bg-primary/5">
           <Landmark className="h-4 w-4 text-primary" />
         </div>
       </div>
 
-      <div className="rounded-md border border-border-subtle bg-background p-3">
+      <div className="rounded-md border border-border-subtle bg-card p-3">
         <div className="mb-2 flex items-center justify-between text-xs text-muted-foreground">
           <span>Wallet balance</span>
           <span className="mono">sats</span>
@@ -105,7 +105,7 @@ function WalletMetric({
   tone?: string;
 }) {
   return (
-    <div className="rounded-md border border-border-subtle bg-background p-3">
+    <div className="rounded-md border border-border-subtle bg-card p-3">
       <div className="mb-2 flex items-center gap-2 text-xs text-muted-foreground">
         <Icon className="h-3.5 w-3.5" />
         {label}
@@ -121,8 +121,8 @@ function getApprovalState(snapshot: JobSnapshot | null) {
   if (!snapshot) {
     return {
       title: "No job selected",
-      detail: "Submit a request to let the orchestrator evaluate route cost and wallet capacity.",
-      boxTone: "border-border-subtle bg-background"
+      detail: "No wallet movement yet.",
+      boxTone: "border-border-subtle bg-card"
     };
   }
 
@@ -145,7 +145,7 @@ function getApprovalState(snapshot: JobSnapshot | null) {
   if (snapshot.job.status === "completed") {
     return {
       title: "Route completed",
-      detail: "The orchestrator completed synthesis after execution and settlement steps.",
+      detail: "Execution and settlement are complete.",
       boxTone: "border-success/25 bg-success/5"
     };
   }
@@ -160,7 +160,7 @@ function getApprovalState(snapshot: JobSnapshot | null) {
 
   return {
     title: "Monitoring route",
-    detail: "The CFO gate evaluates wallet capacity, step size, and worker trust before execution.",
+    detail: "Watching holds, settlement, and available sats.",
     boxTone: "border-info/30 bg-info/10"
   };
 }

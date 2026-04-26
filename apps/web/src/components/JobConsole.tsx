@@ -1,6 +1,6 @@
 "use client";
 
-import { Bot, CircleDollarSign, RadioTower, TerminalSquare, Users, Wallet, Zap } from "lucide-react";
+import { Activity, Bot, CircleDollarSign, RadioTower, TerminalSquare, Users, Wallet, Zap } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ChatPanel } from "./ChatPanel";
@@ -10,7 +10,7 @@ import { RatingPrompt } from "./RatingPrompt";
 import { StatusBadge } from "./StatusBadge";
 import { TreasuryPanel } from "./TreasuryPanel";
 import { createTopupInvoice, getServiceHealth } from "@/lib/hub";
-import { confirmJob, createJob, getJob, clarifyJob } from "@/lib/orchestrator";
+import { clarifyJob, confirmJob, createJob, getJob } from "@/lib/orchestrator";
 import { connectWallet, payInvoice, userIdFromPubkey, type ConnectedWallet } from "@/lib/webln";
 import { DEFAULT_PROMPT } from "@/lib/workers";
 import type { JobSnapshot, ServiceHealthItem, ServiceHealthResponse } from "@/lib/types";
@@ -84,8 +84,8 @@ export function JobConsole({ initialJobId }: { initialJobId?: string }) {
     setWalletConnecting(true);
     setError(null);
     try {
-      const w = await connectWallet();
-      setWallet(w);
+      const nextWallet = await connectWallet();
+      setWallet(nextWallet);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Unable to connect wallet");
     } finally {
@@ -108,9 +108,6 @@ export function JobConsole({ initialJobId }: { initialJobId?: string }) {
       window.history.pushState(null, "", `/jobs/${created.job_id}`);
       await loadJob(created.job_id);
 
-      // If a wallet is connected, fund the job immediately so the executor
-      // can hold sats. Otherwise the orchestrator will plan but stall at
-      // /hub/hold with insufficient_funds.
       if (wallet) {
         setTopupStatus("creating");
         try {
@@ -174,60 +171,66 @@ export function JobConsole({ initialJobId }: { initialJobId?: string }) {
 
   return (
     <div className="console-grid text-foreground">
-      <aside className="left-rail border-r border-border-subtle bg-card/70 p-4 lg:sticky lg:top-0 lg:min-h-screen">
+      <aside className="left-rail border-r border-border-subtle bg-card p-4 lg:sticky lg:top-0 lg:min-h-screen">
         <div className="mb-8 flex items-center gap-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-md border border-border bg-muted">
-            <Bot className="h-5 w-5 text-primary" />
+          <div className="flex h-9 w-9 items-center justify-center rounded-md bg-primary text-primary-foreground shadow-sm">
+            <Bot className="h-5 w-5" />
           </div>
           <div>
             <p className="text-sm font-semibold">AgentMkt</p>
-            <p className="mono text-xs text-muted-foreground">routing desk</p>
+            <p className="text-xs text-muted-foreground">Paid work routing</p>
           </div>
         </div>
 
         <nav className="space-y-1 text-sm">
-          <RailItem active icon={TerminalSquare} label="Request" />
-          <RailLink href="/workers" icon={Users} label="Workers" />
+          <RailItem active icon={TerminalSquare} label="Routing desk" />
+          <RailLink href="/workers" icon={Users} label="Marketplace" />
           <RailLink href="/workers/new" icon={RadioTower} label="List worker" />
         </nav>
 
-        <div className="mt-8 rounded-md border border-border-subtle bg-background p-3">
-          <p className="section-label mb-2">Wallet</p>
+        <div className="mt-8 rounded-md border border-border-subtle bg-muted/50 p-3">
+          <div className="mb-3 flex items-center justify-between">
+            <p className="section-label">Wallet</p>
+            <Wallet className="h-3.5 w-3.5 text-muted-foreground" />
+          </div>
           {wallet ? (
             <div className="space-y-1 text-xs">
               <div className="flex items-center justify-between gap-2">
                 <span className="text-muted-foreground">Connected</span>
-                <span className="text-success">●</span>
+                <span className="text-success">ready</span>
               </div>
               <div className="mono truncate text-muted-foreground" title={wallet.pubkey}>
-                {wallet.alias} · {wallet.pubkey.slice(0, 8)}…{wallet.pubkey.slice(-4)}
+                {wallet.alias} - {wallet.pubkey.slice(0, 8)}...{wallet.pubkey.slice(-4)}
               </div>
             </div>
           ) : (
             <button
-              type="button"
+              className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-md border border-border-subtle bg-card text-xs font-medium text-foreground shadow-sm transition hover:bg-muted disabled:opacity-60"
               disabled={walletConnecting}
               onClick={handleConnectWallet}
-              className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-md border border-border bg-muted text-xs font-medium text-foreground transition hover:bg-muted/80 disabled:opacity-60"
+              type="button"
             >
               <Wallet className="h-3.5 w-3.5" />
-              {walletConnecting ? "Connecting…" : "Connect Lightning wallet"}
+              {walletConnecting ? "Connecting..." : "Connect Lightning wallet"}
             </button>
           )}
           {topupStatus !== "idle" ? (
             <div className="mt-2 flex items-center gap-2 border-t border-border-subtle pt-2 text-xs">
               <Zap className="h-3.5 w-3.5 text-primary" />
-              {topupStatus === "creating" ? <span className="text-muted-foreground">Requesting topup…</span> : null}
+              {topupStatus === "creating" ? <span className="text-muted-foreground">Requesting topup...</span> : null}
               {topupStatus === "awaiting" ? <span className="text-muted-foreground">Confirm in Alby ({DEFAULT_TOPUP_SATS} sats)</span> : null}
-              {topupStatus === "paid" ? <span className="text-success">Paid · {DEFAULT_TOPUP_SATS} sats</span> : null}
+              {topupStatus === "paid" ? <span className="text-success">Paid, {DEFAULT_TOPUP_SATS} sats</span> : null}
               {topupStatus === "error" ? <span className="text-danger">Topup failed</span> : null}
             </div>
           ) : null}
           {topupError ? <p className="mt-2 text-xs text-danger">{topupError}</p> : null}
         </div>
 
-        <div className="mt-4 rounded-md border border-border-subtle bg-background p-3">
-          <p className="section-label mb-2">Services</p>
+        <div className="mt-4 rounded-md border border-border-subtle bg-muted/50 p-3">
+          <div className="mb-3 flex items-center justify-between">
+            <p className="section-label">Services</p>
+            <span className={`h-2 w-2 rounded-full ${health?.ok === false ? "bg-danger" : "bg-success"}`} />
+          </div>
           <div className="space-y-2 text-xs text-muted-foreground">
             <ServiceLine item={health?.services.orchestrator} label="Orchestrator" />
             <ServiceLine item={health?.services.marketplace} label="Marketplace" />
@@ -241,22 +244,47 @@ export function JobConsole({ initialJobId }: { initialJobId?: string }) {
         </div>
       </aside>
 
-      <main className="min-w-0 p-4 lg:p-6">
-        <header className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-border-subtle pb-4">
+      <main className="min-w-0 px-4 py-5 lg:px-8 lg:py-7">
+        <header className="mb-5 flex flex-wrap items-start justify-between gap-4">
           <div>
             <div className="mb-2 flex items-center gap-2">
               <span className={`inline-flex h-2 w-2 rounded-full ${health?.ok === false ? "bg-danger" : "bg-success"}`} />
               <span className="section-label">Quality-aware routing</span>
             </div>
-            <h1 className="text-2xl font-semibold">AgentMkt Routing Desk</h1>
+            <h1 className="text-3xl font-semibold tracking-[-0.01em]">Routing desk</h1>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
+              Submit a paid work request, inspect the selected route, and approve only when the CFO gate asks.
+            </p>
           </div>
           <div className="flex items-center gap-2">
             {snapshot ? <StatusBadge status={snapshot.job.status} /> : null}
-            <span className="mono rounded-md border border-border bg-muted px-2 py-1 text-xs text-muted-foreground">
+            <span className="mono rounded-md border border-border-subtle bg-card px-2 py-1 text-xs text-muted-foreground shadow-sm">
               {jobId || "job_not_started"}
             </span>
           </div>
         </header>
+
+        <section className="mb-5 rounded-md border border-primary/35 bg-primary/5 p-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex min-w-0 items-start gap-3">
+              <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-primary/20 bg-card">
+                <Activity className="h-4 w-4 text-primary" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-sm font-semibold">Live marketplace routing</p>
+                <p className="mt-1 text-sm leading-5 text-muted-foreground">
+                  Routes use orchestrator plans, marketplace candidates, and hub balances from the running services.
+                </p>
+              </div>
+            </div>
+            <Link
+              className="inline-flex h-9 shrink-0 items-center justify-center rounded-md border border-primary/30 bg-card px-3 text-sm font-medium text-primary transition hover:bg-primary/10 focus:outline-none focus:ring-2 focus:ring-primary/20"
+              href="/workers"
+            >
+              View workers
+            </Link>
+          </div>
+        </section>
 
         <div className="job-grid">
           <ChatPanel
@@ -274,15 +302,15 @@ export function JobConsole({ initialJobId }: { initialJobId?: string }) {
             <section className="panel p-4" id="trace">
               <div className="mb-3 flex items-center gap-2">
                 <CircleDollarSign className="h-4 w-4 text-primary" />
-                <h2 className="text-sm font-semibold">Trace</h2>
+                <h2 className="text-sm font-semibold">Job trace</h2>
               </div>
               <details className="group">
                 <summary className="cursor-pointer text-sm text-muted-foreground transition hover:text-foreground">
-                  Show orchestration state
+                  Show latest state
                 </summary>
                 <div className="mt-3 space-y-2">
                   {traceLines.map((line) => (
-                    <p className="mono rounded border border-border-subtle bg-background px-2 py-1 text-xs text-muted-foreground" key={line}>
+                    <p className="mono rounded border border-border-subtle bg-muted/60 px-2 py-1 text-xs text-muted-foreground" key={line}>
                       {line}
                     </p>
                   ))}
@@ -302,7 +330,7 @@ function RailItem({ active = false, icon: Icon, label }: { active?: boolean; ico
   return (
     <div
       className={`flex items-center gap-2 rounded-md px-3 py-2 ${
-        active ? "bg-muted text-foreground" : "text-muted-foreground"
+        active ? "bg-primary/10 text-primary" : "text-muted-foreground"
       }`}
     >
       <Icon className="h-4 w-4" />

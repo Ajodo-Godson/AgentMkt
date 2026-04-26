@@ -86,27 +86,27 @@ export function WorkerMarketplace() {
   };
 
   return (
-    <main className="min-h-screen bg-background px-4 py-6 text-foreground sm:px-6 lg:px-8">
+    <main className="min-h-screen bg-background px-4 py-6 text-foreground sm:px-6 lg:px-10">
       <div className="mx-auto max-w-7xl">
         <Link className="mb-7 inline-flex items-center gap-2 text-sm text-muted-foreground transition hover:text-foreground" href="/">
           <ArrowLeft className="h-4 w-4" />
-          Mission control
+          Routing desk
         </Link>
 
-        <header className="mb-6 flex flex-col gap-4 border-b border-border-subtle pb-5 lg:flex-row lg:items-end lg:justify-between">
+        <header className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <div className="mb-2 flex items-center gap-2">
               <span className={`inline-flex h-2 w-2 rounded-full ${error ? "bg-danger" : "bg-success"}`} />
               <span className="section-label">Marketplace discovery</span>
             </div>
-            <h1 className="text-2xl font-semibold">Worker marketplace</h1>
+            <h1 className="text-3xl font-semibold tracking-[-0.01em]">Worker marketplace</h1>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-              Live worker candidates from the marketplace discovery endpoint.
+              Live worker candidates grouped by capability, price, and reputation.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
             <button
-              className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-border bg-muted px-4 text-sm font-medium text-foreground transition hover:bg-card-elevated focus:outline-none focus:ring-2 focus:ring-primary/40"
+              className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-border-subtle bg-card px-4 text-sm font-medium text-foreground shadow-sm transition hover:bg-muted focus:outline-none focus:ring-2 focus:ring-primary/20"
               onClick={loadWorkers}
               type="button"
             >
@@ -125,7 +125,7 @@ export function WorkerMarketplace() {
         <section className="mb-5 grid gap-3 md:grid-cols-3">
           <Metric icon={ShieldCheck} label="Returned" value={workers.length.toString()} detail={`${agentCount} agents, ${humanCount} human`} />
           <Metric icon={Zap} label="Median price" value={medianPrice === null ? "Unavailable" : `${medianPrice} sats`} detail="Base worker price" />
-          <Metric icon={CheckCircle2} label="Source" value={error ? "Down" : "Live"} detail={error ?? "Marketplace /discover"} />
+          <Metric icon={CheckCircle2} label="Service" value={error ? "Unavailable" : "Live"} detail={error ?? "Marketplace /discover"} />
         </section>
 
         <section className="panel-strong overflow-hidden">
@@ -133,7 +133,7 @@ export function WorkerMarketplace() {
             <label className="relative block">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <input
-                className="h-10 w-full rounded-md border border-border-subtle bg-background pl-9 pr-3 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:border-primary/60 focus:ring-2 focus:ring-primary/20"
+                className="h-10 w-full rounded-md border border-border-subtle bg-card pl-9 pr-3 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:border-primary/60 focus:ring-2 focus:ring-primary/20"
                 onChange={(event) => setQuery(event.target.value)}
                 placeholder="Search workers"
                 value={query}
@@ -170,7 +170,10 @@ export function WorkerMarketplace() {
 
           <div className={isLoading ? "scan-line" : ""}>
             {error ? (
-              <div className="p-8 text-sm text-danger">{error}</div>
+              <div className="p-8">
+                <p className="text-sm font-medium text-danger">Marketplace unavailable</p>
+                <p className="mt-1 text-sm text-muted-foreground">{error}</p>
+              </div>
             ) : filteredWorkers.length > 0 ? (
               filteredWorkers.map((worker) => (
                 <WorkerRow copied={copiedId === worker.worker_id} key={worker.worker_id} onCopy={copyWorkerId} worker={worker} />
@@ -225,7 +228,7 @@ function Select({
     <label className="block">
       <span className="sr-only">{label}</span>
       <select
-        className="h-10 w-full rounded-md border border-border-subtle bg-background px-3 text-sm text-foreground outline-none transition focus:border-primary/60 focus:ring-2 focus:ring-primary/20"
+        className="h-10 w-full rounded-md border border-border-subtle bg-card px-3 text-sm text-foreground outline-none transition focus:border-primary/60 focus:ring-2 focus:ring-primary/20"
         onChange={(event) => onChange(event.target.value)}
         value={value}
       >
@@ -250,7 +253,7 @@ function WorkerRow({
     <article className="grid gap-4 border-b border-border-subtle px-4 py-4 last:border-b-0 lg:grid-cols-[minmax(260px,1.45fr)_minmax(220px,1fr)_110px_120px_124px] lg:items-center">
       <div className="min-w-0">
         <div className="mb-2 flex flex-wrap items-center gap-2">
-          <span className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border-subtle bg-background">
+          <span className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border-subtle bg-primary/5">
             <WorkerIcon className="h-4 w-4 text-primary" />
           </span>
           <h2 className="truncate text-sm font-semibold">{worker.display_name}</h2>
@@ -267,7 +270,7 @@ function WorkerRow({
 
       <div className="flex flex-wrap gap-2">
         {worker.capability_tags.map((item) => (
-          <span className="rounded-md border border-border-subtle bg-background px-2 py-1 text-xs text-muted-foreground" key={item}>
+          <span className="rounded-md border border-border-subtle bg-card px-2 py-1 text-xs text-muted-foreground" key={item}>
             {getCapabilityLabel(item)}
           </span>
         ))}
@@ -292,7 +295,7 @@ function WorkerRow({
 
       <div className="flex items-center gap-2 lg:justify-end">
         <button
-          className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-border bg-muted px-3 text-xs font-medium text-foreground transition hover:bg-card-elevated focus:outline-none focus:ring-2 focus:ring-primary/40"
+          className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-border-subtle bg-card px-3 text-xs font-medium text-foreground shadow-sm transition hover:bg-muted focus:outline-none focus:ring-2 focus:ring-primary/20"
           onClick={() => onCopy(worker.worker_id)}
           type="button"
         >

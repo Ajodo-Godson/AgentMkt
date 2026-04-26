@@ -22,15 +22,15 @@ export function ChatPanel({ prompt, snapshot, isLaunching, error, onPromptChange
     <section className="panel-strong request-panel p-4">
       <div className="mb-4">
         <p className="section-label">Request</p>
-        <h2 className="text-lg font-semibold">What should AgentMkt do?</h2>
+        <h2 className="text-lg font-semibold">Work order</h2>
       </div>
 
       <label className="mb-2 block text-sm text-muted-foreground" htmlFor="prompt">
-        Work request
+        Request
       </label>
       <textarea
         id="prompt"
-        className="min-h-40 w-full resize-none rounded-md border border-border bg-background px-3 py-3 text-sm leading-6 text-foreground outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
+        className="min-h-40 w-full resize-none rounded-md border border-border-subtle bg-card px-3 py-3 text-sm leading-6 text-foreground outline-none transition placeholder:text-muted-foreground focus:border-primary/60 focus:ring-2 focus:ring-primary/20"
         value={prompt}
         onChange={(event) => onPromptChange(event.target.value)}
         placeholder={DEFAULT_PROMPT}
@@ -43,7 +43,7 @@ export function ChatPanel({ prompt, snapshot, isLaunching, error, onPromptChange
         type="button"
       >
         <SendHorizontal className="h-4 w-4" />
-        {isLaunching ? "Submitting request" : "Start routing"}
+        {isLaunching ? "Submitting" : "Start route"}
       </button>
 
       {error ? <div className="mt-4 rounded-md border border-danger/40 bg-danger/10 p-3 text-sm text-danger">{error}</div> : null}
@@ -51,7 +51,7 @@ export function ChatPanel({ prompt, snapshot, isLaunching, error, onPromptChange
       <div className="mt-5 border-t border-border-subtle pt-4">
         <div className="mb-3 flex items-center gap-2 text-sm font-medium">
           <Sparkles className="h-4 w-4 text-primary" />
-          Result
+          Output
         </div>
         {completed && result ? (
           <div className="space-y-3 text-sm leading-6 text-foreground">
@@ -65,7 +65,7 @@ export function ChatPanel({ prompt, snapshot, isLaunching, error, onPromptChange
           <p className="text-sm leading-6 text-danger">{snapshot?.debug?.error ?? "The orchestrator marked this job as failed."}</p>
         ) : (
           <p className="text-sm leading-6 text-muted-foreground">
-            Results appear here after the orchestrator completes verification and synthesis.
+            Output appears here after execution and verification.
           </p>
         )}
       </div>

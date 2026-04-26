@@ -35,8 +35,8 @@ function ConfirmRoutePanel({
   snapshot: JobSnapshot;
 }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/90 px-4">
-      <section className="w-full max-w-xl rounded-lg border border-warning/45 bg-card-elevated shadow-2xl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/85 px-4">
+      <section className="w-full max-w-xl rounded-lg border border-warning/35 bg-card-elevated shadow-2xl">
         <div className="border-b border-border-subtle p-5">
           <div className="mb-4 flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-md border border-warning/40 bg-warning/10">
@@ -57,11 +57,11 @@ function ConfirmRoutePanel({
             <div className="mb-3 rounded-md border border-warning/25 bg-warning/10 p-3 text-sm text-warning">
               <div className="flex items-center gap-2">
                 <AlertTriangle className="h-4 w-4" />
-                Approval is required by the orchestrator before this route can continue.
+                Approval is required before this route continues.
               </div>
             </div>
             {snapshot.plan.steps.map((step, index) => (
-              <div className="flex items-center justify-between rounded-md border border-border-subtle bg-background p-3" key={step.id}>
+              <div className="flex items-center justify-between rounded-md border border-border-subtle bg-card p-3" key={step.id}>
                 <div>
                   <p className="text-sm font-medium">
                     {index + 1}. {step.dag_node.replaceAll("_", " ")}
@@ -76,7 +76,7 @@ function ConfirmRoutePanel({
 
         <div className="flex justify-end gap-2 border-t border-border-subtle p-5">
           <button
-            className="inline-flex h-10 items-center gap-2 rounded-md border border-border bg-muted px-4 text-sm text-foreground transition hover:bg-card"
+            className="inline-flex h-10 items-center gap-2 rounded-md border border-border-subtle bg-card px-4 text-sm text-foreground transition hover:bg-muted"
             disabled={isResponding}
             onClick={() => onConfirm(false)}
             type="button"
@@ -110,8 +110,8 @@ function ClarifyPanel({ isResponding, onClarify }: { isResponding: boolean; onCl
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/90 px-4">
-      <form className="w-full max-w-xl rounded-lg border border-info/45 bg-card-elevated shadow-2xl" onSubmit={submit}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/85 px-4">
+      <form className="w-full max-w-xl rounded-lg border border-info/35 bg-card-elevated shadow-2xl" onSubmit={submit}>
         <div className="border-b border-border-subtle p-5">
           <div className="mb-4 flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-md border border-info/40 bg-info/10">
