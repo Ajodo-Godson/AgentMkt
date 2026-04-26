@@ -171,7 +171,15 @@ export async function cooPlannnerNode( // exported name kept for graph.ts import
     }
   }
 
-  const candidatesJson = JSON.stringify(candidates, null, 2);
+  // Internal workers don't require Lightning preimages — sort them first so the
+  // LLM prefers them over external 402index workers.
+  const sortedCandidates = [...candidates].sort((a, b) => {
+    if (a.source === "internal" && b.source !== "internal") return -1;
+    if (a.source !== "internal" && b.source === "internal") return 1;
+    return 0;
+  });
+
+  const candidatesJson = JSON.stringify(sortedCandidates, null, 2);
   const userMessage = `User prompt: ${job.prompt}
 CEO extracted intent: ${intake_intent ?? "not available"}
 Requested capability tags: ${
@@ -191,6 +199,8 @@ ${
 Please revise the plan to address this issue.`
     : ""
 }
+
+Prefer workers with source "internal" when they cover the required capability — they are more reliable. Use external workers (source "402index") only when no internal worker covers the capability.
 
 Produce the execution plan as JSON.`;
 
