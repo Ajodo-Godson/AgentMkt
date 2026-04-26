@@ -1,5 +1,5 @@
-import { JobConsole } from "@/components/JobConsole";
+import { Landing } from "@/components/Landing";
 
 export default function HomePage() {
-  return <JobConsole />;
+  return <Landing />;
 }

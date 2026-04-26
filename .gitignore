@@ -33,6 +33,12 @@ Thumbs.db
 .idea/
 *.swp
 
+# Local AI agent / IDE skill tooling (per-developer, not project code)
+.agents/
+.claude/
+.kiro/
+skills-lock.json
+
 # Test / coverage
 coverage/
 .nyc_output/

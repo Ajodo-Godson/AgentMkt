@@ -1,6 +1,5 @@
 "use client";
 
-import { BadgeCheck, Landmark, LockKeyhole, RotateCcw, ShieldAlert, WalletCards } from "lucide-react";
 import { useEffect, useState } from "react";
 import { getJobBalance, getWalletBalance, type ExtendedJobBalanceResponse } from "@/lib/hub";
 import type { JobSnapshot } from "@/lib/types";
@@ -51,80 +50,56 @@ export function TreasuryPanel({ snapshot, userId }: { snapshot: JobSnapshot | nu
   }, [job?.id, snapshot?.job.updated_at, userId]);
 
   return (
-    <section className="panel-strong wallet-panel p-4">
-      <div className="mb-4 flex items-center justify-between">
-        <div>
-          <p className="section-label">Payments</p>
-          <h2 className="text-lg font-semibold">Account balance</h2>
-        </div>
-        <div className="flex h-9 w-9 items-center justify-center rounded-md border border-border-subtle bg-primary/5">
-          <Landmark className="h-4 w-4 text-primary" />
-        </div>
+    <section>
+      <div className="flex items-baseline gap-2">
+        <span className="display-serif text-5xl text-foreground">{formatBigNumber(accountBalance)}</span>
+        <span className="text-sm text-muted-foreground">sats</span>
       </div>
 
-      <div className="rounded-md border border-border-subtle bg-card p-3">
-        <div className="mb-2 flex items-center justify-between text-xs text-muted-foreground">
-          <span>Available balance</span>
-          <span className="mono">sats</span>
-        </div>
-        <p className="mono text-2xl font-semibold">{formatMetric(accountBalance)}</p>
-        <div className="mt-3 h-2 overflow-hidden rounded-full bg-muted">
-          <div className="h-full rounded-full bg-primary transition-[width] duration-200" style={{ width: `${walletUsed}%` }} />
-        </div>
+      <div className="mt-4 h-px w-full bg-border-subtle">
+        <div className="h-px bg-primary transition-[width] duration-200" style={{ width: `${walletUsed}%` }} />
       </div>
 
-      <div className="mt-3 grid grid-cols-2 gap-2">
-        <WalletMetric icon={WalletCards} label="Route estimate" value={formatMetric(estimate)} />
-        <WalletMetric icon={LockKeyhole} label="Held" value={formatMetric(reserved)} />
-        <WalletMetric icon={BadgeCheck} label="Settled" tone="text-success" value={formatMetric(settled)} />
-        <WalletMetric icon={RotateCcw} label="Available" value={formatMetric(available)} />
-        <WalletMetric icon={ShieldAlert} label="Fees" value={formatMetric(fees)} />
-        <WalletMetric icon={WalletCards} label="Topup" value={formatMetric(toppedUp)} />
-      </div>
+      <dl className="mt-6 space-y-2.5 text-sm">
+        <LedgerLine label="Estimate" value={formatMetric(estimate)} />
+        <LedgerLine label="Held" value={formatMetric(reserved)} />
+        <LedgerLine label="Settled" value={formatMetric(settled)} tone="text-success" />
+        <LedgerLine label="Available" value={formatMetric(available)} />
+        <LedgerLine label="Fees" value={formatMetric(fees)} />
+        <LedgerLine label="Topup" value={formatMetric(toppedUp)} />
+      </dl>
 
-      {balanceError ? <p className="mt-3 rounded-md border border-danger/35 bg-danger/10 p-3 text-xs text-danger">{balanceError}</p> : null}
+      {balanceError ? <p className="mt-4 text-xs text-danger">{balanceError}</p> : null}
 
-      <div className={`mt-3 rounded-md border p-3 ${approval.boxTone}`}>
-        <div className="mb-1 flex items-center gap-2 text-sm font-medium">
-          <ShieldAlert className="h-4 w-4" />
-          {approval.title}
-        </div>
-        <p className="whitespace-pre-wrap text-xs leading-5 text-muted-foreground">{approval.detail}</p>
+      <div className="mt-8 border-t border-border-subtle pt-4">
+        <p className={`text-sm font-medium ${approval.titleTone}`}>{approval.title}</p>
+        <p className="mt-1 text-xs leading-5 text-muted-foreground">{approval.detail}</p>
       </div>
     </section>
   );
 }
 
-function WalletMetric({
-  icon: Icon,
-  label,
-  value,
-  tone = "text-foreground"
-}: {
-  icon: typeof WalletCards;
-  label: string;
-  value: string;
-  tone?: string;
-}) {
+function LedgerLine({ label, value, tone }: { label: string; value: string; tone?: string }) {
   return (
-    <div className="rounded-md border border-border-subtle bg-card p-3">
-      <div className="mb-2 flex items-center gap-2 text-xs text-muted-foreground">
-        <Icon className="h-3.5 w-3.5" />
-        {label}
-      </div>
-      <p className={`mono text-base font-medium ${tone}`}>{value}</p>
+    <div className="flex items-baseline justify-between gap-3">
+      <dt className="text-muted-foreground">{label}</dt>
+      <dd className={`mono ${tone ?? "text-foreground"}`}>{value}</dd>
     </div>
   );
 }
 
-function getApprovalState(snapshot: JobSnapshot | null) {
+function getApprovalState(snapshot: JobSnapshot | null): {
+  title: string;
+  detail: string;
+  titleTone: string;
+} {
   const verdict = snapshot?.debug?.cfo_verdict;
 
   if (!snapshot) {
     return {
       title: "No job selected",
       detail: "No wallet movement yet.",
-      boxTone: "border-border-subtle bg-card"
+      titleTone: "text-muted-foreground"
     };
   }
 
@@ -132,7 +107,7 @@ function getApprovalState(snapshot: JobSnapshot | null) {
     return {
       title: "CFO approval required",
       detail: verdict.summary ?? "The orchestrator paused for approval.",
-      boxTone: "border-warning/35 bg-warning/10"
+      titleTone: "text-warning"
     };
   }
 
@@ -140,7 +115,7 @@ function getApprovalState(snapshot: JobSnapshot | null) {
     return {
       title: "Awaiting topup",
       detail: "Pay the topup invoice to add funds to this account before orchestration starts.",
-      boxTone: "border-warning/35 bg-warning/10"
+      titleTone: "text-warning"
     };
   }
 
@@ -148,7 +123,7 @@ function getApprovalState(snapshot: JobSnapshot | null) {
     return {
       title: "CFO requested a replan",
       detail: `${verdict.reason ?? "Route risk"}: ${verdict.detail ?? "The proposed route did not meet policy."}`,
-      boxTone: "border-info/30 bg-info/10"
+      titleTone: "text-info"
     };
   }
 
@@ -156,7 +131,7 @@ function getApprovalState(snapshot: JobSnapshot | null) {
     return {
       title: "Route completed",
       detail: "Execution and settlement are complete.",
-      boxTone: "border-success/25 bg-success/5"
+      titleTone: "text-success"
     };
   }
 
@@ -164,17 +139,27 @@ function getApprovalState(snapshot: JobSnapshot | null) {
     return {
       title: "Route failed",
       detail: snapshot.debug?.error ?? "The orchestrator marked this job as failed.",
-      boxTone: "border-danger/35 bg-danger/10"
+      titleTone: "text-danger"
     };
   }
 
   return {
     title: "Monitoring route",
     detail: "Watching holds, settlement, and available sats.",
-    boxTone: "border-info/30 bg-info/10"
+    titleTone: "text-foreground"
   };
 }
 
+function formatBigNumber(value: number | null | undefined) {
+  if (typeof value !== "number") {
+    return "—";
+  }
+  return value.toLocaleString();
+}
+
 function formatMetric(value: number | null | undefined) {
-  return typeof value === "number" ? `${value}` : "Unavailable";
+  if (typeof value !== "number") {
+    return "—";
+  }
+  return value.toLocaleString();
 }

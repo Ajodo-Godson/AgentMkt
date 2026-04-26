@@ -1,6 +1,5 @@
 "use client";
 
-import { AlertTriangle, Check, HelpCircle, ShieldAlert, X } from "lucide-react";
 import { FormEvent, useState } from "react";
 import type { JobSnapshot } from "@/lib/types";
 
@@ -35,63 +34,46 @@ function ConfirmRoutePanel({
   snapshot: JobSnapshot;
 }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/85 px-4">
-      <section className="w-full max-w-xl rounded-lg border border-warning/35 bg-card-elevated shadow-2xl">
-        <div className="border-b border-border-subtle p-5">
-          <div className="mb-4 flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-md border border-warning/40 bg-warning/10">
-              <ShieldAlert className="h-5 w-5 text-warning" />
-            </div>
-            <div>
-              <p className="section-label text-warning">Approval</p>
-              <h2 className="text-lg font-semibold">Confirm CFO hold</h2>
-            </div>
-          </div>
-          <p className="whitespace-pre-wrap text-sm leading-6 text-muted-foreground">
-            {snapshot.debug?.cfo_verdict?.summary ?? "The orchestrator paused for approval before continuing."}
-          </p>
-        </div>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/15 px-4 backdrop-blur-sm">
+      <section className="w-full max-w-lg rounded-lg border border-border bg-card-elevated p-8 shadow-lg">
+        <p className="section-label mb-3">Approval required</p>
+        <h2 className="display-serif text-3xl text-foreground">Confirm the route.</h2>
+        <p className="mt-3 text-sm leading-6 text-muted-foreground">
+          {snapshot.debug?.cfo_verdict?.summary ?? "The orchestrator paused for approval."}
+        </p>
 
         {snapshot.plan ? (
-          <div className="space-y-2 p-5">
-            <div className="mb-3 rounded-md border border-warning/25 bg-warning/10 p-3 text-sm text-warning">
-              <div className="flex items-center gap-2">
-                <AlertTriangle className="h-4 w-4" />
-                Approval is required before this route continues.
-              </div>
-            </div>
+          <div className="mt-6 border-t border-border-subtle">
             {snapshot.plan.steps.map((step, index) => (
-              <div className="flex items-center justify-between rounded-md border border-border-subtle bg-card p-3" key={step.id}>
+              <div className="flex items-center justify-between border-b border-border-subtle py-3" key={step.id}>
                 <div>
-                  <p className="text-sm font-medium">
+                  <p className="text-sm">
                     {index + 1}. {step.dag_node.replaceAll("_", " ")}
                   </p>
                   <p className="mono text-xs text-muted-foreground">{step.primary_worker_id}</p>
                 </div>
-                <p className="mono text-sm text-primary">{step.estimate_sats} sats</p>
+                <p className="mono text-xs text-muted-foreground">{step.estimate_sats} sats</p>
               </div>
             ))}
           </div>
         ) : null}
 
-        <div className="flex justify-end gap-2 border-t border-border-subtle p-5">
+        <div className="mt-6 flex justify-end gap-6">
           <button
-            className="inline-flex h-10 items-center gap-2 rounded-md border border-border-subtle bg-card px-4 text-sm text-foreground transition hover:bg-muted"
+            className="text-sm text-muted-foreground hover:text-foreground"
             disabled={isResponding}
             onClick={() => onConfirm(false)}
             type="button"
           >
-            <X className="h-4 w-4" />
-            Stop route
+            Cancel
           </button>
           <button
-            className="inline-flex h-10 items-center gap-2 rounded-md bg-primary px-4 text-sm font-semibold text-primary-foreground transition hover:brightness-110 disabled:opacity-60"
+            className="text-sm font-medium text-foreground hover:text-primary disabled:opacity-50"
             disabled={isResponding}
             onClick={() => onConfirm(true)}
             type="button"
           >
-            <Check className="h-4 w-4" />
-            Confirm
+            Confirm <span className="text-primary">→</span>
           </button>
         </div>
       </section>
@@ -110,44 +92,30 @@ function ClarifyPanel({ isResponding, onClarify }: { isResponding: boolean; onCl
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/85 px-4">
-      <form className="w-full max-w-xl rounded-lg border border-info/35 bg-card-elevated shadow-2xl" onSubmit={submit}>
-        <div className="border-b border-border-subtle p-5">
-          <div className="mb-4 flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-md border border-info/40 bg-info/10">
-              <HelpCircle className="h-5 w-5 text-info" />
-            </div>
-            <div>
-              <p className="section-label text-info">Clarification</p>
-              <h2 className="text-lg font-semibold">The orchestrator needs more detail</h2>
-            </div>
-          </div>
-          <p className="text-sm leading-6 text-muted-foreground">
-            The backend does not expose the exact interrupt question yet. Add the missing context and AgentMkt will resume the job.
-          </p>
-        </div>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/15 px-4 backdrop-blur-sm">
+      <form className="w-full max-w-lg rounded-lg border border-border bg-card-elevated p-8 shadow-lg" onSubmit={submit}>
+        <p className="section-label mb-3">Clarification</p>
+        <h2 className="display-serif text-3xl text-foreground">Tell us a bit more.</h2>
+        <p className="mt-3 text-sm leading-6 text-muted-foreground">
+          Add the missing context so AgentMkt can resume the job.
+        </p>
 
-        <div className="p-5">
-          <label className="mb-2 block text-sm text-muted-foreground" htmlFor="clarification">
-            Clarification
-          </label>
-          <textarea
-            className="form-control min-h-28 resize-y leading-6"
-            id="clarification"
-            onChange={(event) => setAnswer(event.target.value)}
-            placeholder="Add the source text, target language, deadline, or any missing constraints."
-            value={answer}
-          />
-        </div>
+        <textarea
+          className="mt-6 block w-full resize-none border-0 border-b border-border bg-transparent py-3 text-base leading-7 text-foreground outline-none placeholder:text-muted-foreground focus:border-primary"
+          id="clarification"
+          rows={4}
+          onChange={(event) => setAnswer(event.target.value)}
+          placeholder="Source text, target language, deadline, constraints…"
+          value={answer}
+        />
 
-        <div className="flex justify-end gap-2 border-t border-border-subtle p-5">
+        <div className="mt-6 flex justify-end">
           <button
-            className="inline-flex h-10 items-center gap-2 rounded-md bg-primary px-4 text-sm font-semibold text-primary-foreground transition hover:brightness-110 disabled:opacity-60"
+            className="text-sm font-medium text-foreground hover:text-primary disabled:opacity-50"
             disabled={isResponding || answer.trim().length === 0}
             type="submit"
           >
-            <Check className="h-4 w-4" />
-            Submit clarification
+            Submit <span className="text-primary">→</span>
           </button>
         </div>
       </form>
