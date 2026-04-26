@@ -2,10 +2,10 @@
 
 import { BadgeCheck, Landmark, LockKeyhole, RotateCcw, ShieldAlert, WalletCards } from "lucide-react";
 import { useEffect, useState } from "react";
-import { getWalletBalance, type ExtendedJobBalanceResponse } from "@/lib/hub";
+import { getJobBalance, type ExtendedJobBalanceResponse } from "@/lib/hub";
 import type { JobSnapshot } from "@/lib/types";
 
-export function TreasuryPanel({ snapshot, userId }: { snapshot: JobSnapshot | null; userId: string }) {
+export function TreasuryPanel({ snapshot }: { snapshot: JobSnapshot | null }) {
   const [balance, setBalance] = useState<ExtendedJobBalanceResponse | null>(null);
   const [balanceError, setBalanceError] = useState<string | null>(null);
   const job = snapshot?.job;
@@ -29,14 +29,14 @@ export function TreasuryPanel({ snapshot, userId }: { snapshot: JobSnapshot | nu
   const approval = getApprovalState(snapshot);
 
   useEffect(() => {
-    if (!userId) {
+    if (!job?.id) {
       setBalance(null);
       setBalanceError(null);
       return;
     }
 
     let cancelled = false;
-    getWalletBalance(userId)
+    getJobBalance(job.id)
       .then((nextBalance) => {
         if (!cancelled) {
           setBalance(nextBalance);
@@ -53,7 +53,7 @@ export function TreasuryPanel({ snapshot, userId }: { snapshot: JobSnapshot | nu
     return () => {
       cancelled = true;
     };
-  }, [snapshot?.job.updated_at, userId]);
+  }, [job?.id, snapshot?.job.updated_at]);
 
   return (
     <section className="panel-strong wallet-panel p-4">
