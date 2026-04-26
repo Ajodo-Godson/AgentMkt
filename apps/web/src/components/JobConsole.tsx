@@ -1,6 +1,6 @@
 "use client";
 
-import { Bot, CircleDollarSign, RadioTower, TerminalSquare, Users } from "lucide-react";
+import { Bot, CircleDollarSign, RadioTower, TerminalSquare, Users, Wallet, Zap } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ChatPanel } from "./ChatPanel";
@@ -9,13 +9,15 @@ import { PlanTrace } from "./PlanTrace";
 import { RatingPrompt } from "./RatingPrompt";
 import { StatusBadge } from "./StatusBadge";
 import { TreasuryPanel } from "./TreasuryPanel";
-import { getServiceHealth } from "@/lib/hub";
+import { createTopupInvoice, getServiceHealth } from "@/lib/hub";
 import { confirmJob, createJob, getJob, clarifyJob } from "@/lib/orchestrator";
+import { connectWallet, payInvoice, userIdFromPubkey, type ConnectedWallet } from "@/lib/webln";
 import { DEFAULT_PROMPT } from "@/lib/workers";
 import type { JobSnapshot, ServiceHealthItem, ServiceHealthResponse } from "@/lib/types";
 
 const terminalStatuses = new Set(["completed", "failed", "cancelled"]);
 const buyerUserId = process.env.NEXT_PUBLIC_BUYER_USER_ID ?? "user_demo_buyer";
+const DEFAULT_TOPUP_SATS = Number(process.env.NEXT_PUBLIC_DEFAULT_TOPUP_SATS ?? 1000);
 
 export function JobConsole({ initialJobId }: { initialJobId?: string }) {
   const [prompt, setPrompt] = useState(DEFAULT_PROMPT);
@@ -25,6 +27,10 @@ export function JobConsole({ initialJobId }: { initialJobId?: string }) {
   const [isLaunching, setIsLaunching] = useState(false);
   const [isResponding, setIsResponding] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [wallet, setWallet] = useState<ConnectedWallet | null>(null);
+  const [walletConnecting, setWalletConnecting] = useState(false);
+  const [topupStatus, setTopupStatus] = useState<"idle" | "creating" | "awaiting" | "paid" | "error">("idle");
+  const [topupError, setTopupError] = useState<string | null>(null);
 
   const loadJob = useCallback(async (id: string) => {
     const nextSnapshot = await getJob(id);
@@ -74,23 +80,55 @@ export function JobConsole({ initialJobId }: { initialJobId?: string }) {
     return () => window.clearInterval(interval);
   }, [jobId, loadJob, snapshot?.job.status]);
 
+  const handleConnectWallet = useCallback(async () => {
+    setWalletConnecting(true);
+    setError(null);
+    try {
+      const w = await connectWallet();
+      setWallet(w);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Unable to connect wallet");
+    } finally {
+      setWalletConnecting(false);
+    }
+  }, []);
+
   const launchJob = useCallback(async () => {
     setIsLaunching(true);
     setError(null);
+    setTopupError(null);
+    setTopupStatus("idle");
     try {
+      const userId = wallet ? userIdFromPubkey(wallet.pubkey) : buyerUserId;
       const created = await createJob({
-        user_id: buyerUserId,
+        user_id: userId,
         prompt: prompt.trim()
       });
       setJobId(created.job_id);
       window.history.pushState(null, "", `/jobs/${created.job_id}`);
       await loadJob(created.job_id);
+
+      // If a wallet is connected, fund the job immediately so the executor
+      // can hold sats. Otherwise the orchestrator will plan but stall at
+      // /hub/hold with insufficient_funds.
+      if (wallet) {
+        setTopupStatus("creating");
+        try {
+          const invoice = await createTopupInvoice(created.job_id, DEFAULT_TOPUP_SATS);
+          setTopupStatus("awaiting");
+          await payInvoice(invoice.bolt11);
+          setTopupStatus("paid");
+        } catch (caught) {
+          setTopupStatus("error");
+          setTopupError(caught instanceof Error ? caught.message : "Topup payment failed");
+        }
+      }
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Unable to launch job");
     } finally {
       setIsLaunching(false);
     }
-  }, [loadJob, prompt]);
+  }, [loadJob, prompt, wallet]);
 
   const handleConfirm = useCallback(
     async (confirmed: boolean) => {
@@ -154,6 +192,41 @@ export function JobConsole({ initialJobId }: { initialJobId?: string }) {
         </nav>
 
         <div className="mt-8 rounded-md border border-border-subtle bg-background p-3">
+          <p className="section-label mb-2">Wallet</p>
+          {wallet ? (
+            <div className="space-y-1 text-xs">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-muted-foreground">Connected</span>
+                <span className="text-success">●</span>
+              </div>
+              <div className="mono truncate text-muted-foreground" title={wallet.pubkey}>
+                {wallet.alias} · {wallet.pubkey.slice(0, 8)}…{wallet.pubkey.slice(-4)}
+              </div>
+            </div>
+          ) : (
+            <button
+              type="button"
+              disabled={walletConnecting}
+              onClick={handleConnectWallet}
+              className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-md border border-border bg-muted text-xs font-medium text-foreground transition hover:bg-muted/80 disabled:opacity-60"
+            >
+              <Wallet className="h-3.5 w-3.5" />
+              {walletConnecting ? "Connecting…" : "Connect Lightning wallet"}
+            </button>
+          )}
+          {topupStatus !== "idle" ? (
+            <div className="mt-2 flex items-center gap-2 border-t border-border-subtle pt-2 text-xs">
+              <Zap className="h-3.5 w-3.5 text-primary" />
+              {topupStatus === "creating" ? <span className="text-muted-foreground">Requesting topup…</span> : null}
+              {topupStatus === "awaiting" ? <span className="text-muted-foreground">Confirm in Alby ({DEFAULT_TOPUP_SATS} sats)</span> : null}
+              {topupStatus === "paid" ? <span className="text-success">Paid · {DEFAULT_TOPUP_SATS} sats</span> : null}
+              {topupStatus === "error" ? <span className="text-danger">Topup failed</span> : null}
+            </div>
+          ) : null}
+          {topupError ? <p className="mt-2 text-xs text-danger">{topupError}</p> : null}
+        </div>
+
+        <div className="mt-4 rounded-md border border-border-subtle bg-background p-3">
           <p className="section-label mb-2">Services</p>
           <div className="space-y-2 text-xs text-muted-foreground">
             <ServiceLine item={health?.services.orchestrator} label="Orchestrator" />
@@ -161,7 +234,7 @@ export function JobConsole({ initialJobId }: { initialJobId?: string }) {
             <ServiceLine item={health?.services.hub} label="Hub" />
             <ServiceLine item={health?.services.lexe} label="Lexe" />
             <div className="flex items-center justify-between border-t border-border-subtle pt-2">
-              <span>Wallet balance</span>
+              <span>Hub balance</span>
               <span className="mono">{formatMaybeSats(snapshot?.debug?.wallet_balance_sats)}</span>
             </div>
           </div>
