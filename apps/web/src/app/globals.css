@@ -54,6 +54,7 @@ body {
 
 button,
 input,
+select,
 textarea {
   font: inherit;
 }
@@ -64,6 +65,31 @@ button {
 
 button:disabled {
   cursor: not-allowed;
+}
+
+.form-control {
+  width: 100%;
+  min-height: 40px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius);
+  background: var(--background);
+  color: var(--foreground);
+  padding: 0.625rem 0.75rem;
+  font-size: 0.875rem;
+  outline: none;
+  transition:
+    border-color 180ms ease-out,
+    box-shadow 180ms ease-out,
+    background-color 180ms ease-out;
+}
+
+.form-control::placeholder {
+  color: var(--muted-foreground);
+}
+
+.form-control:focus {
+  border-color: oklch(0.76 0.14 78 / 0.6);
+  box-shadow: 0 0 0 2px oklch(0.76 0.14 78 / 0.18);
 }
 
 ::selection {
@@ -137,6 +163,10 @@ button:disabled {
 .segmented-control button.is-selected {
   background: var(--muted);
   color: var(--foreground);
+}
+
+.segmented-control-two {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .status-pulse {

@@ -78,3 +78,21 @@ export interface WorkerCandidate {
 }
 
 export type RoutePreference = "balanced" | "lowest_cost" | "highest_quality" | "fastest";
+
+export interface MarketplaceWorker {
+  id: string;
+  displayName: string;
+  type: "agent" | "human";
+  capabilities: CapabilityTag[];
+  basePriceSats: number;
+  rating: number | null;
+  successRate: number | null;
+  completedJobs: number;
+  latencyMs: number | null;
+  source: "internal" | "402index" | "user";
+  status: "active" | "new";
+  description: string;
+  contact: string;
+  listedAt: string;
+  reason: string;
+}
