@@ -45,11 +45,11 @@ export const mockHub = {
   }) => ({ notified: true }),
 
   jobBalance: async (_job_id: string) => ({
-    topped_up_sats: 0,
+    topped_up_sats: 1000,
     held_sats: 0,
     settled_sats: 0,
     fees_sats: 0,
-    available_sats: 0,
+    available_sats: 1000,
   }),
 
   walletBalance: async (_user_id: string) => ({
