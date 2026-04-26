@@ -14,7 +14,8 @@
     "db:generate": "pnpm --filter @agentmkt/db generate",
     "db:migrate": "pnpm --filter @agentmkt/db migrate",
     "db:seed": "tsx scripts/seed.ts",
-    "smoke": "tsx scripts/smoke.ts"
+    "smoke": "tsx scripts/smoke.ts",
+    "dev:orchestrator": "pnpm --filter @agentmkt/orchestrator dev"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
