@@ -4,7 +4,8 @@ import type { StepResult } from "@agentmkt/contracts";
 import { mockHub } from "./mock.js";
 
 const BASE = process.env.HUB_BASE_URL ?? "http://localhost:4002";
-const useMocks = () => process.env.USE_MOCKS === "true";
+const useMocks = () =>
+  process.env.USE_MOCKS === "true" || process.env.USE_MOCK_HUB === "true";
 
 async function post<T>(path: string, body: unknown): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
