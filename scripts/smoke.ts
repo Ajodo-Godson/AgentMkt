@@ -8,34 +8,39 @@ interface JobSnapshot {
     status: "intake" | "planning" | "awaiting_user" | "executing" | "completed" | "failed" | "cancelled";
     spent_sats: number;
   };
+  final_output: string | null;
+  debug?: {
+    cfo_verdict?: {
+      kind: string;
+    } | null;
+  } | null;
 }
 
 async function main() {
   const created = await post<{ job_id: string }>("/jobs", {
     user_id: DEMO_BUYER_USER_ID,
-    prompt: "Summarize this article and have a French native speaker record a 30-second voiceover of the summary.",
-    budget_sats: 1500
+    prompt: "Summarize the key points of the Bitcoin whitepaper."
   });
 
   const deadline = Date.now() + 90_000;
-  let confirmed = false;
 
   while (Date.now() < deadline) {
     const snapshot = await get<JobSnapshot>(`/jobs/${created.job_id}`);
     console.log(`${snapshot.job.id} status=${snapshot.job.status} spent=${snapshot.job.spent_sats}`);
 
-    if (snapshot.job.status === "awaiting_user" && !confirmed) {
-      await post(`/jobs/${created.job_id}/confirm`, { confirmed: true });
-      confirmed = true;
-    }
-
     if (terminalStatuses.has(snapshot.job.status)) {
-      if (snapshot.job.status === "completed" && snapshot.job.spent_sats > 0) {
+      if (
+        snapshot.job.status === "completed" &&
+        snapshot.final_output &&
+        snapshot.debug?.cfo_verdict?.kind === "APPROVED"
+      ) {
         console.log("Smoke passed");
         return;
       }
 
-      throw new Error(`Smoke failed: terminal status ${snapshot.job.status}, spent ${snapshot.job.spent_sats}`);
+      throw new Error(
+        `Smoke failed: terminal status ${snapshot.job.status}, spent ${snapshot.job.spent_sats}`
+      );
     }
 
     await sleep(1000);
