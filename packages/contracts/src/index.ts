@@ -50,7 +50,6 @@ export interface Job {
   id: JobId;
   user_id: UserId;
   prompt: string;
-  budget_sats: number;
   locked_sats: number;
   spent_sats: number;
   status: JobStatus;
@@ -62,7 +61,6 @@ export const JobSchema = z.object({
   id: z.string(),
   user_id: z.string(),
   prompt: z.string(),
-  budget_sats: z.number().int().nonnegative(),
   locked_sats: z.number().int().nonnegative(),
   spent_sats: z.number().int().nonnegative(),
   status: JobStatusSchema,
@@ -435,7 +433,6 @@ export type VerifyResponse = z.infer<typeof VerifyResponseSchema>;
 export const CreateJobRequestSchema = z.object({
   user_id: z.string(),
   prompt: z.string().min(1),
-  budget_sats: z.number().int().positive(),
 });
 export type CreateJobRequest = z.infer<typeof CreateJobRequestSchema>;
 
