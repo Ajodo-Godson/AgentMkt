@@ -20,6 +20,7 @@
 // =============================================================================
 
 import bolt11 from "bolt11";
+import { createHash } from "node:crypto";
 import { lexeClient } from "./lexe-client.js";
 import { childLogger } from "../lib/logger.js";
 import { HubError } from "../lib/errors.js";
@@ -163,6 +164,17 @@ function bolt11Tag(
   return typeof t?.data === "string" ? t.data : undefined;
 }
 
+function sha256HexOfHex(hex: string): string {
+  if (!/^[0-9a-fA-F]{64}$/.test(hex)) {
+    throw new HubError(
+      502,
+      "lexe_bad_preimage",
+      "Lexe returned a malformed payment preimage",
+    );
+  }
+  return createHash("sha256").update(Buffer.from(hex, "hex")).digest("hex");
+}
+
 // -----------------------------------------------------------------------------
 // Payment flow
 // -----------------------------------------------------------------------------
@@ -212,24 +224,22 @@ export async function payL402Invoice(
     );
   }
 
-  // The Lexe payment record doesn't include the preimage in the GET payment
-  // schema we have, but L402 servers that follow the recommended macaroon
-  // construction can verify by checking sha256(preimage) == payment_hash. The
-  // preimage IS what we receive on payment success. Lexe stores it but doesn't
-  // expose it on this endpoint as of v0.4.x.
-  //
-  // Workaround: many L402 servers (Aperture-based) are happy to accept the
-  // payment_hash itself as the macaroon's "proof of payment" if their backing
-  // node sees the invoice as paid (since macaroons commit to payment_hash and
-  // these servers do server-side verification). For belt-and-suspenders, we
-  // attempt to read a `preimage` field if the sidecar version we run includes
-  // it; if absent, we fall back to using the payment_hash and let the supplier
-  // verify against its own node.
-  //
-  // TODO(P2 phase 3): patch Lexe's GET /v2/node/payment to include preimage,
-  // or use the Rust SDK directly. As of v0.7.x the field is internal-only.
-  const preimageMaybe = (finalized as unknown as { preimage?: string }).preimage;
-  const preimage = preimageMaybe || challenge.invoice_payment_hash;
+  const preimage = finalized.preimage;
+  if (!preimage) {
+    throw new HubError(
+      502,
+      "lexe_no_preimage",
+      `completed outbound payment ${pay.index} did not include a preimage`,
+    );
+  }
+  const preimageHash = sha256HexOfHex(preimage);
+  if (preimageHash !== challenge.invoice_payment_hash.toLowerCase()) {
+    throw new HubError(
+      502,
+      "l402_preimage_mismatch",
+      `preimage hash ${preimageHash} does not match invoice payment_hash ${challenge.invoice_payment_hash}`,
+    );
+  }
 
   const paid_sats = numFromString(finalized.amount, challenge.invoice_amount_sats);
   const routing_fee_sats = numFromString(finalized.fees, 0);

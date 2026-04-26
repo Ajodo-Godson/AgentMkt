@@ -54,11 +54,28 @@ export function startSidecar(opts: StartSidecarOpts = {}): ChildProcess | null {
 
   logger.info({ binPath }, "spawning lexe sidecar");
   const args: string[] = [];
-  if (env.LEXE_CLIENT_CREDENTIALS) {
-    args.push("--credentials", env.LEXE_CLIENT_CREDENTIALS);
-  }
-  args.push("--network", env.LEXE_NETWORK);
 
+  if (env.LEXE_CLIENT_CREDENTIALS_PATH) {
+    args.push("--client-credentials-path", env.LEXE_CLIENT_CREDENTIALS_PATH);
+  } else if (env.LEXE_CLIENT_CREDENTIALS) {
+    args.push("--client-credentials", env.LEXE_CLIENT_CREDENTIALS);
+  }
+
+  let listenAddr: string | undefined;
+  try {
+    const u = new URL(env.LEXE_SIDECAR_URL);
+    if (u.host) listenAddr = u.host;
+  } catch {
+    // ignore
+  }
+  if (listenAddr) args.push("--listen-addr", listenAddr);
+
+  if (env.LEXE_DATA_DIR) {
+    args.push("--data-dir", env.LEXE_DATA_DIR);
+  }
+
+  // The sidecar also reads LEXE_ROOT_SEED / LEXE_ROOT_SEED_PATH from the
+  // environment directly; we pass it through unchanged via process.env.
   child = spawn(binPath, args, {
     stdio: ["ignore", "pipe", "pipe"],
     env: process.env,

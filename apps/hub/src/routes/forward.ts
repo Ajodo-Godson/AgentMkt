@@ -6,11 +6,11 @@
 
 import { Hono } from "hono";
 import * as z from "zod";
-import { getHold, updateHoldStatus } from "../ledger/holds.js";
+import { claimHoldForForwarding, updateHoldStatus } from "../ledger/holds.js";
 import { recordPosting } from "../ledger/postings.js";
 import { computeFee } from "../policy/fee.js";
 import { l402Forward } from "../lightning/l402-client.js";
-import { jsonError, HubError } from "../lib/errors.js";
+import { jsonError } from "../lib/errors.js";
 import { childLogger } from "../lib/logger.js";
 
 const log = childLogger({ component: "route:forward" });
@@ -32,21 +32,7 @@ export const forwardRoute = new Hono().post("/forward", async (c) => {
     }
     const { hold_invoice_id, supplier_endpoint, supplier_payload } = parsed.data;
 
-    const hold = await getHold(hold_invoice_id);
-    if (hold.status !== "held") {
-      throw new HubError(
-        409,
-        "hold_state_invalid",
-        `cannot forward for hold in status ${hold.status}`,
-      );
-    }
-    if (hold.paid_to_supplier_sats !== null && hold.paid_to_supplier_sats > 0) {
-      throw new HubError(
-        409,
-        "hold_already_forwarded",
-        `hold ${hold_invoice_id} was already forwarded for ${hold.paid_to_supplier_sats} sats`,
-      );
-    }
+    const hold = await claimHoldForForwarding(hold_invoice_id);
 
     const ok = await l402Forward({
       supplier_endpoint,

@@ -241,6 +241,7 @@ export const hold_invoices = pgTable(
       enum: [
         "pending",
         "held",
+        "forwarding",
         "settled",
         "cancelled",
         "expired",

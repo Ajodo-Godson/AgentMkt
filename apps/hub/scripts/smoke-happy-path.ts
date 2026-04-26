@@ -28,6 +28,14 @@ const SUPPLIER = process.env.FAKE_SUPPLIER_URL ?? "http://localhost:5099/service
 const TOPUP_SATS = Number.parseInt(process.env.SMOKE_TOPUP_SATS ?? "1500", 10);
 const HOLD_SATS = Number.parseInt(process.env.SMOKE_HOLD_SATS ?? "200", 10);
 const SKIP_TOPUP = process.env.SMOKE_USE_SPONSOR_SATS === "1";
+const BOOTSTRAP_JOB_ID = "job_bootstrap_funding";
+const BOOTSTRAP_FORWARD_STEP_ID = "step_bootstrap_forward";
+const BOOTSTRAP_CANCEL_STEP_ID = "step_bootstrap_cancel";
+
+function argValue(name: string): string | undefined {
+  const ix = process.argv.indexOf(name);
+  return ix >= 0 ? process.argv[ix + 1] : undefined;
+}
 
 async function call(path: string, body: unknown): Promise<Record<string, unknown>> {
   const res = await fetch(`${HUB}${path}`, {
@@ -56,8 +64,23 @@ async function get(path: string): Promise<Record<string, unknown>> {
 }
 
 async function main() {
-  const job_id = randomUUID();
-  logger.info({ job_id, hub: HUB, supplier: SUPPLIER }, "starting smoke");
+  const job_id =
+    argValue("--job_id") ??
+    process.env.SMOKE_JOB_ID ??
+    (SKIP_TOPUP ? BOOTSTRAP_JOB_ID : randomUUID());
+  const forward_step_id =
+    argValue("--forward_step_id") ??
+    process.env.SMOKE_FORWARD_STEP_ID ??
+    (job_id === BOOTSTRAP_JOB_ID ? BOOTSTRAP_FORWARD_STEP_ID : randomUUID());
+  const cancel_step_id =
+    argValue("--cancel_step_id") ??
+    process.env.SMOKE_CANCEL_STEP_ID ??
+    (job_id === BOOTSTRAP_JOB_ID ? BOOTSTRAP_CANCEL_STEP_ID : randomUUID());
+
+  logger.info(
+    { job_id, forward_step_id, cancel_step_id, hub: HUB, supplier: SUPPLIER },
+    "starting smoke",
+  );
 
   // 1. topup
   if (!SKIP_TOPUP) {
@@ -102,7 +125,7 @@ async function main() {
   // 3. hold
   const hold = await call("/hub/hold", {
     job_id,
-    step_id: randomUUID(),
+    step_id: forward_step_id,
     ceiling_sats: HOLD_SATS,
   });
   console.log("\n=== STEP 3: hold created ===", hold);
@@ -128,7 +151,7 @@ async function main() {
   // 7. second hold + cancel (refund path)
   const hold2 = await call("/hub/hold", {
     job_id,
-    step_id: randomUUID(),
+    step_id: cancel_step_id,
     ceiling_sats: 50,
   });
   console.log("\n=== STEP 7a: second hold ===", hold2);

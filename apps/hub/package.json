@@ -9,8 +9,10 @@
     "start": "node --import tsx src/index.ts",
     "build": "tsc",
     "typecheck": "tsc --noEmit",
+    "seed:topup": "tsx scripts/seed-topup.ts",
     "smoke:1sat": "tsx scripts/smoke-1sat.ts",
     "smoke:happy": "tsx scripts/smoke-happy-path.ts",
+    "test:fee": "tsx scripts/fee.test.ts",
     "fake-supplier": "tsx scripts/fake-supplier.ts"
   },
   "dependencies": {

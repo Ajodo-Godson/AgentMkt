@@ -317,6 +317,7 @@ export const LedgerEntrySchema = z.object({
 export const HoldInvoiceStatusSchema = z.enum([
   "pending",
   "held",
+  "forwarding",
   "settled",
   "cancelled",
   "expired",

@@ -8,7 +8,7 @@
 
 import { schema } from "@agentmkt/db";
 import { db } from "@agentmkt/db";
-import { eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
 import type { HoldStatus, JobId, StepId } from "@agentmkt/contracts";
 import { HubError } from "../lib/errors.js";
@@ -45,6 +45,43 @@ export async function getHold(hold_invoice_id: string): Promise<HoldRow> {
   });
   if (!row) throw new HubError(404, "hold_not_found", hold_invoice_id);
   return row;
+}
+
+export async function claimHoldForForwarding(hold_invoice_id: string): Promise<HoldRow> {
+  const [row] = await db
+    .update(schema.holdInvoices)
+    .set({ status: "forwarding", updated_at: new Date() })
+    .where(
+      and(
+        eq(schema.holdInvoices.id, hold_invoice_id),
+        eq(schema.holdInvoices.status, "held"),
+        isNull(schema.holdInvoices.paid_to_supplier_sats),
+      ),
+    )
+    .returning();
+
+  if (row) return row;
+
+  const hold = await getHold(hold_invoice_id);
+  if (hold.status === "forwarding") {
+    throw new HubError(
+      409,
+      "hold_already_forwarding",
+      `hold ${hold_invoice_id} is already being forwarded`,
+    );
+  }
+  if (hold.paid_to_supplier_sats !== null && hold.paid_to_supplier_sats > 0) {
+    throw new HubError(
+      409,
+      "hold_already_forwarded",
+      `hold ${hold_invoice_id} was already forwarded for ${hold.paid_to_supplier_sats} sats`,
+    );
+  }
+  throw new HubError(
+    409,
+    "hold_state_invalid",
+    `cannot forward for hold in status ${hold.status}`,
+  );
 }
 
 export async function updateHoldStatus(

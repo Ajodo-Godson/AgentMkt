@@ -91,6 +91,8 @@ const paymentSchema = z.object({
   fees: z.string().nullable().optional(),
   status: z.enum(["pending", "completed", "failed"]),
   status_msg: z.string().nullable().optional(),
+  hash: z.string().nullable().optional(),
+  preimage: z.string().nullable().optional(),
   invoice: z.string().nullable().optional(),
   note: z.string().nullable().optional(),
   payer_note: z.string().nullable().optional(),

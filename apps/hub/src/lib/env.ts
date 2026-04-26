@@ -20,6 +20,16 @@ const envSchema = z.object({
   LEXE_NETWORK: z.enum(["mainnet", "testnet", "regtest"]).default("mainnet"),
   HUB_BASE_URL: z.string().url().default("http://localhost:4002"),
   LEXE_CLIENT_CREDENTIALS: z.string().optional().default(""),
+  LEXE_CLIENT_CREDENTIALS_PATH: z.string().optional().default(""),
+  LEXE_ROOT_SEED: z.string().optional().default(""),
+  LEXE_ROOT_SEED_PATH: z.string().optional().default(""),
+  LEXE_DATA_DIR: z.string().optional().default(""),
+  LEXE_AUTOSPAWN: z
+    .enum(["true", "false"])
+    .default("true")
+    .transform((v) => v === "true"),
+
+  HUB_ADMIN_TOKEN: z.string().optional().default(""),
 
   HUB_MAX_ROUTING_FEE_SATS: z.coerce.number().int().nonnegative().default(50),
   HUB_FEE_BPS: z.coerce.number().int().min(0).max(10_000).default(500),

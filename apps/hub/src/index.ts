@@ -28,6 +28,8 @@ import { cancelRoute } from "./routes/cancel.js";
 import { notifyHumanRoute } from "./routes/notify-human.js";
 import { humanSubmitRoute } from "./routes/human-submit.js";
 import { balanceRoute } from "./routes/balance.js";
+import { adminLedgerRoute } from "./routes/admin-ledger.js";
+import { startHoldExpirySweeper } from "./ledger/expiry.js";
 
 const app = new Hono();
 
@@ -71,7 +73,8 @@ const hub = new Hono()
   .route("/", cancelRoute)
   .route("/", notifyHumanRoute)
   .route("/", humanSubmitRoute)
-  .route("/", balanceRoute);
+  .route("/", balanceRoute)
+  .route("/", adminLedgerRoute);
 app.route("/hub", hub);
 
 // 404 fallback.
@@ -102,8 +105,12 @@ async function main(): Promise<void> {
     "hub booting",
   );
 
-  if (isSidecarBinaryPresent()) {
+  let expiryTimer: NodeJS.Timeout | null = null;
+
+  if (env.LEXE_AUTOSPAWN && isSidecarBinaryPresent()) {
     startSidecar();
+  } else if (!env.LEXE_AUTOSPAWN) {
+    logger.info("Lexe sidecar autospawn disabled; expecting an external sidecar");
   } else {
     logger.warn(
       { binPath: "apps/hub/bin/lexe-sidecar" },
@@ -117,6 +124,8 @@ async function main(): Promise<void> {
     logger.warn({ err: e }, "sidecar health probe failed");
   });
 
+  expiryTimer = startHoldExpirySweeper(60_000);
+
   serve({ fetch: app.fetch, port: env.PORT_HUB }, (info) => {
     logger.info({ port: info.port }, `hub listening on http://localhost:${info.port}`);
   });
@@ -124,6 +133,7 @@ async function main(): Promise<void> {
   // Graceful shutdown.
   const shutdown = async (signal: string) => {
     logger.info({ signal }, "shutting down");
+    if (expiryTimer) clearInterval(expiryTimer);
     stopSidecar();
     await closeDb();
     process.exit(0);
