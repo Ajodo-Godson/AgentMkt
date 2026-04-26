@@ -24,7 +24,7 @@ const PlannerOutputStepSchema = z.object({
   capability_tag: CapabilityTagSchema,
   primary_worker_id: z.string().nullable().transform((v) => v ?? ""),
   fallback_ids: z.array(z.string()).default([]),
-  estimate_sats: z.number().int(),
+  estimate_sats: z.number().int().transform((v) => Math.max(v, 100)),
   depends_on: z.array(z.string()).default([]),
   human_required: z.boolean().default(false),
   optional: z.boolean().default(false),

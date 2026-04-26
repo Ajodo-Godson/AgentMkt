@@ -40,11 +40,11 @@ async function executeStep(
   for (let attempt = 0; attempt <= step.retries_left; attempt++) {
     retryWorkerId = workersToTry[Math.min(attempt, workersToTry.length - 1)];
     try {
-      // 1. Hold funds
+      // 1. Hold funds — enforce minimum ceiling so hub never receives a 0-sat hold
       const held = await hub.hold({
         job_id,
         step_id: step.id,
-        ceiling_sats: step.ceiling_sats,
+        ceiling_sats: Math.max(step.ceiling_sats, 110),
       });
       holdInvoiceId = held.hold_invoice_id;
 
