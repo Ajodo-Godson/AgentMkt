@@ -1,6 +1,6 @@
 "use client";
 
-import { CheckCircle2, CircleDashed, Clock } from "lucide-react";
+import { CheckCircle2, CircleDashed, Clock, Loader2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { discoverWorkers } from "@/lib/marketplace";
 import { getCapabilityLabel } from "@/lib/workers";
@@ -14,6 +14,10 @@ export function PlanTrace({ snapshot }: { snapshot: JobSnapshot | null }) {
   const [candidates, setCandidates] = useState<WorkerCandidate[]>([]);
   const [candidateError, setCandidateError] = useState<string | null>(null);
   const [isLoadingCandidates, setIsLoadingCandidates] = useState(false);
+  const jobStatus = snapshot?.job.status ?? null;
+  const routeIsActive = jobStatus === "intake" || jobStatus === "awaiting_funds" || jobStatus === "planning" || jobStatus === "executing";
+  const showAlternativesLoading = !candidateError && (isLoadingCandidates || (routeIsActive && candidates.length === 0));
+  const loadingCopy = getAlternativesLoadingCopy(jobStatus, activeStep);
 
   useEffect(() => {
     if (!activeCapability) {
@@ -56,7 +60,7 @@ export function PlanTrace({ snapshot }: { snapshot: JobSnapshot | null }) {
   return (
     <section>
       {steps.length === 0 ? (
-        <EmptyRoute />
+        <EmptyRoute status={jobStatus} />
       ) : (
         <div className="route-timeline">
           {steps.map((step, index) => (
@@ -65,13 +69,15 @@ export function PlanTrace({ snapshot }: { snapshot: JobSnapshot | null }) {
         </div>
       )}
 
-      <div className="mt-10 border-t border-border-subtle pt-6">
+      <div className="alternatives-panel mt-10 border-t border-border-subtle pt-6">
         <p className="section-label mb-4">
           Alternatives{activeStep ? ` — ${getCapabilityLabel(activeStep.capability_tag)}` : ""}
         </p>
-        <div className={snapshot?.job.status === "planning" || isLoadingCandidates ? "scan-line" : ""}>
+        <div>
           {candidateError ? (
-            <p className="text-sm text-danger">{candidateError}</p>
+            <p className="break-anywhere text-sm text-danger">{candidateError}</p>
+          ) : showAlternativesLoading ? (
+            <AlternativesLoadingState detail={loadingCopy.detail} title={loadingCopy.title} />
           ) : candidates.length > 0 ? (
             <div className="worker-table">
               <div className="worker-row worker-row-header">
@@ -101,7 +107,23 @@ export function PlanTrace({ snapshot }: { snapshot: JobSnapshot | null }) {
   );
 }
 
-function EmptyRoute() {
+function EmptyRoute({ status }: { status: string | null }) {
+  if (status === "intake" || status === "planning") {
+    return (
+      <div className="route-loading-card" role="status" aria-live="polite">
+        <div className="route-loading-icon">
+          <Loader2 className="h-4 w-4 animate-spin" />
+        </div>
+        <div className="min-w-0">
+          <p className="text-sm font-medium text-foreground">Planning route</p>
+          <p className="mt-1 text-xs leading-5 text-muted-foreground">
+            The orchestrator is turning the work order into priced worker steps.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="py-2">
       <p className="display-serif text-3xl text-muted-foreground">
@@ -112,6 +134,53 @@ function EmptyRoute() {
       </p>
     </div>
   );
+}
+
+function AlternativesLoadingState({ title, detail }: { title: string; detail: string }) {
+  return (
+    <div className="route-loading-card route-loading-card-strong" role="status" aria-live="polite">
+      <div className="route-loading-icon">
+        <Loader2 className="h-5 w-5 animate-spin" />
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-semibold text-foreground">{title}</p>
+        <p className="mt-1 break-anywhere text-xs leading-5 text-muted-foreground">{detail}</p>
+        <div className="mt-5 space-y-2" aria-hidden>
+          <div className="loading-skeleton h-3 w-11/12" />
+          <div className="loading-skeleton h-3 w-8/12" />
+          <div className="loading-skeleton h-3 w-10/12" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function getAlternativesLoadingCopy(status: string | null, activeStep: Step | null) {
+  if (status === "awaiting_funds") {
+    return {
+      title: "Waiting for Lightning topup",
+      detail: "Worker alternatives load after the hub sees payment and the route can safely start."
+    };
+  }
+
+  if (status === "executing") {
+    return {
+      title: activeStep ? `Running ${getCapabilityLabel(activeStep.capability_tag)}` : "Route running",
+      detail: "The current paid job is in progress. Keep this route open instead of starting another one."
+    };
+  }
+
+  if (status === "planning" || status === "intake") {
+    return {
+      title: "Planning worker alternatives",
+      detail: "The COO is pricing candidates, checking fallback workers, and preparing the route."
+    };
+  }
+
+  return {
+    title: "Loading worker alternatives",
+    detail: "Fetching live marketplace candidates for this step."
+  };
 }
 
 function StepRow({ step, index, active }: { step: Step; index: number; active: boolean }) {
@@ -139,7 +208,7 @@ function StepRow({ step, index, active }: { step: Step; index: number; active: b
           <span>Ceiling {step.ceiling_sats} sats</span>
           {step.fallback_ids.length > 0 ? <span>{step.fallback_ids.length} fallback{step.fallback_ids.length > 1 ? "s" : ""}</span> : null}
         </div>
-        {step.error ? <p className="mt-1 text-xs text-danger">{step.error}</p> : null}
+        {step.error ? <p className="break-anywhere mt-1 text-xs text-danger">{step.error}</p> : null}
       </div>
     </div>
   );
@@ -149,8 +218,8 @@ function CandidateRow({ candidate, selected }: { candidate: WorkerCandidate; sel
   return (
     <div className={`worker-row ${selected ? "is-selected" : ""}`}>
       <div className="min-w-0">
-        <div className="flex items-center gap-2">
-          <span className="truncate text-sm font-medium text-foreground">{candidate.display_name}</span>
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
+          <span className="min-w-0 truncate text-sm font-medium text-foreground">{candidate.display_name}</span>
           {selected ? <span className="rounded-full bg-primary/15 px-2 py-0.5 text-xs text-primary">Selected</span> : null}
         </div>
         <p className="mono mt-1 truncate text-xs text-muted-foreground">{candidate.worker_id}</p>

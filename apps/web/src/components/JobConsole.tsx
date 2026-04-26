@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ChatPanel } from "./ChatPanel";
 import { PlanPreview } from "./PlanPreview";
 import { PlanTrace } from "./PlanTrace";
@@ -43,6 +43,7 @@ export function JobConsole({ initialJobId }: { initialJobId?: string }) {
   const [startingJob, setStartingJob] = useState(false);
   const [topupAmountInput, setTopupAmountInput] = useState(String(DEFAULT_TOPUP_SATS));
   const [accountBalance, setAccountBalance] = useState<ExtendedJobBalanceResponse | null>(null);
+  const launchLockRef = useRef(false);
   const currentUserId = snapshot?.job.user_id ?? (wallet ? userIdFromPubkey(wallet.pubkey) : buyerUserId);
 
   const loadJob = useCallback(async (id: string) => {
@@ -170,8 +171,15 @@ export function JobConsole({ initialJobId }: { initialJobId?: string }) {
   const parsedTopupAmount = Number.parseInt(topupAmountInput, 10);
   const topupAmountSats = Number.isFinite(parsedTopupAmount) ? parsedTopupAmount : NaN;
   const topupAmountValid = Number.isInteger(topupAmountSats) && topupAmountSats > 0;
+  const routeActivity = getRouteActivity(snapshot, isLaunching, startingJob, topupStatus);
+  const launchDisabled = routeActivity.lockLaunch;
 
   const launchJob = useCallback(async () => {
+    if (launchDisabled || launchLockRef.current) {
+      return;
+    }
+
+    launchLockRef.current = true;
     setIsLaunching(true);
     setError(null);
     setTopupError(null);
@@ -214,9 +222,10 @@ export function JobConsole({ initialJobId }: { initialJobId?: string }) {
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Unable to launch job");
     } finally {
+      launchLockRef.current = false;
       setIsLaunching(false);
     }
-  }, [loadJob, loadJobScopedBalance, prompt, topupAmountSats, topupAmountValid, wallet]);
+  }, [launchDisabled, loadJob, loadJobScopedBalance, prompt, topupAmountSats, topupAmountValid, wallet]);
 
   const handleConfirm = useCallback(
     async (confirmed: boolean) => {
@@ -417,8 +426,12 @@ export function JobConsole({ initialJobId }: { initialJobId?: string }) {
               <span className="section-label section-label-arrow">Work order</span>
             </div>
             <ChatPanel
+              activityDetail={routeActivity.detail}
+              activityTitle={routeActivity.title}
               error={error}
               isLaunching={isLaunching}
+              launchDisabled={launchDisabled}
+              launchLabel={routeActivity.buttonLabel}
               onLaunch={launchJob}
               onPromptChange={setPrompt}
               prompt={prompt}
@@ -450,7 +463,7 @@ export function JobConsole({ initialJobId }: { initialJobId?: string }) {
                   </summary>
                   <div className="mt-3 space-y-1">
                     {traceLines.map((line) => (
-                      <p className="mono py-0.5 text-xs text-muted-foreground" key={line}>
+                      <p className="mono break-anywhere py-0.5 text-xs text-muted-foreground" key={line}>
                         {line}
                       </p>
                     ))}
@@ -517,6 +530,110 @@ function ServiceLine({ item, label }: { item?: ServiceHealthItem; label: string 
       </span>
     </div>
   );
+}
+
+function getRouteActivity(
+  snapshot: JobSnapshot | null,
+  isLaunching: boolean,
+  startingJob: boolean,
+  topupStatus: "idle" | "creating" | "awaiting" | "paid" | "error"
+): {
+  buttonLabel: string;
+  detail: string | null;
+  lockLaunch: boolean;
+  title: string | null;
+} {
+  if (isLaunching || topupStatus === "creating") {
+    return {
+      buttonLabel: "Preparing funding",
+      detail: "Creating the job and requesting a Lightning invoice.",
+      lockLaunch: true,
+      title: "Funding route"
+    };
+  }
+
+  if (snapshot?.job.status === "completed") {
+    return {
+      buttonLabel: "Start another route",
+      detail: null,
+      lockLaunch: false,
+      title: null
+    };
+  }
+
+  if (snapshot?.job.status === "failed" || snapshot?.job.status === "cancelled") {
+    return {
+      buttonLabel: "Retry with funding",
+      detail: null,
+      lockLaunch: false,
+      title: null
+    };
+  }
+
+  if (startingJob || (topupStatus === "paid" && !snapshot)) {
+    return {
+      buttonLabel: "Starting route",
+      detail: "Payment is confirmed and the orchestrator is starting the route.",
+      lockLaunch: true,
+      title: "Starting route"
+    };
+  }
+
+  if (topupStatus === "awaiting" || snapshot?.job.status === "awaiting_funds") {
+    return {
+      buttonLabel: "Waiting for topup",
+      detail: "Pay the invoice once. The route starts automatically after the hub sees the payment.",
+      lockLaunch: true,
+      title: "Awaiting Lightning payment"
+    };
+  }
+
+  if (!snapshot) {
+    return {
+      buttonLabel: "Fund and start route",
+      detail: null,
+      lockLaunch: false,
+      title: null
+    };
+  }
+
+  switch (snapshot.job.status) {
+    case "intake":
+      return {
+        buttonLabel: "Route queued",
+        detail: "The orchestrator accepted the work order and is preparing intake.",
+        lockLaunch: true,
+        title: "Route queued"
+      };
+    case "planning":
+      return {
+        buttonLabel: "Planning route",
+        detail: "The COO is selecting workers and estimating sats. Do not start another route for this task.",
+        lockLaunch: true,
+        title: "Planning route"
+      };
+    case "executing":
+      return {
+        buttonLabel: "Route running",
+        detail: "Workers are executing the plan. Starting another route would create a second paid job.",
+        lockLaunch: true,
+        title: "Route running"
+      };
+    case "awaiting_user":
+      return {
+        buttonLabel: "Approval needed",
+        detail: "Review the approval panel before the route continues.",
+        lockLaunch: true,
+        title: "Awaiting approval"
+      };
+    default:
+      return {
+        buttonLabel: "Fund and start route",
+        detail: null,
+        lockLaunch: false,
+        title: null
+      };
+  }
 }
 
 function buildTraceLines(snapshot: JobSnapshot | null): string[] {

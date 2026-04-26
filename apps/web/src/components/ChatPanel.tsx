@@ -8,12 +8,27 @@ interface ChatPanelProps {
   prompt: string;
   snapshot: JobSnapshot | null;
   isLaunching: boolean;
+  launchDisabled: boolean;
+  launchLabel: string;
+  activityTitle: string | null;
+  activityDetail: string | null;
   error: string | null;
   onPromptChange: (value: string) => void;
   onLaunch: () => void;
 }
 
-export function ChatPanel({ prompt, snapshot, isLaunching, error, onPromptChange, onLaunch }: ChatPanelProps) {
+export function ChatPanel({
+  prompt,
+  snapshot,
+  isLaunching,
+  launchDisabled,
+  launchLabel,
+  activityTitle,
+  activityDetail,
+  error,
+  onPromptChange,
+  onLaunch
+}: ChatPanelProps) {
   const completed = snapshot?.job.status === "completed";
   const failed = snapshot?.job.status === "failed";
   const result = snapshot?.final_output?.trim();
@@ -35,17 +50,27 @@ export function ChatPanel({ prompt, snapshot, isLaunching, error, onPromptChange
           </span>
           <button
             className="prompt-pill"
-            disabled={isLaunching || charCount === 0}
+            disabled={launchDisabled || isLaunching || charCount === 0}
             onClick={onLaunch}
             type="button"
           >
-            {isLaunching ? "Funding route…" : "Fund and start route"}
+            {launchLabel}
             <span className="prompt-pill-arrow" aria-hidden>→</span>
           </button>
         </div>
       </div>
 
-      {error ? <p className="mt-4 text-sm text-danger">{error}</p> : null}
+      {activityTitle ? (
+        <div className="route-running-banner mt-4" role="status" aria-live="polite">
+          <span className="live-dot" aria-hidden />
+          <div className="min-w-0">
+            <p className="text-sm font-medium text-foreground">{activityTitle}</p>
+            {activityDetail ? <p className="break-anywhere mt-1 text-xs leading-5 text-muted-foreground">{activityDetail}</p> : null}
+          </div>
+        </div>
+      ) : null}
+
+      {error ? <p className="break-anywhere mt-4 text-sm text-danger">{error}</p> : null}
 
       <div className="mt-12 border-t border-[color:var(--blush-border)] pt-6">
         <p className="section-label mb-3">Output</p>
@@ -58,7 +83,7 @@ export function ChatPanel({ prompt, snapshot, isLaunching, error, onPromptChange
             </a>
           </div>
         ) : failed ? (
-          <p className="text-sm text-danger">{snapshot?.debug?.error ?? "Job failed."}</p>
+          <p className="break-anywhere text-sm text-danger">{snapshot?.debug?.error ?? "Job failed."}</p>
         ) : (
           <p className="text-sm text-muted-foreground">
             Output appears after topup, execution, and verification.

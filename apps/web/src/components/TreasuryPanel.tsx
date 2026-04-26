@@ -69,11 +69,11 @@ export function TreasuryPanel({ snapshot, userId }: { snapshot: JobSnapshot | nu
         <LedgerLine label="Topup" value={formatMetric(toppedUp)} />
       </dl>
 
-      {balanceError ? <p className="mt-4 text-xs text-danger">{balanceError}</p> : null}
+      {balanceError ? <p className="break-anywhere mt-4 text-xs text-danger">{balanceError}</p> : null}
 
       <div className="mt-8 border-t border-border-subtle pt-4">
         <p className={`text-sm font-medium ${approval.titleTone}`}>{approval.title}</p>
-        <p className="mt-1 text-xs leading-5 text-muted-foreground">{approval.detail}</p>
+        <p className="break-anywhere mt-1 text-xs leading-5 text-muted-foreground">{approval.detail}</p>
       </div>
     </section>
   );
