@@ -19,3 +19,5 @@ apps/hub/bin/lexe-sidecar
 
 # Drizzle generated artifacts (keep migrations, drop meta if desired)
 packages/db/.drizzle/
+
+instructions.md
