@@ -28,18 +28,18 @@ async function executeStep(
   let current = { ...step, status: "running" as const };
   log.info({ step_id: step.id, dag_node: step.dag_node }, "Executing step");
 
-  // Look up the worker's real endpoint_url from the candidate list.
-  const candidate = candidates.find((c) => c.worker_id === step.primary_worker_id);
-  const supplierEndpoint =
-    candidate?.endpoint_url ??
-    `${process.env.HUB_BASE_URL ?? "http://localhost:4002"}/__supplier/${step.primary_worker_id}`;
-
   let holdInvoiceId = "";
-  let retryWorkerId = step.primary_worker_id;
   const workersToTry = [step.primary_worker_id, ...step.fallback_ids];
 
   for (let attempt = 0; attempt <= step.retries_left; attempt++) {
-    retryWorkerId = workersToTry[Math.min(attempt, workersToTry.length - 1)];
+    const retryWorkerId = workersToTry[Math.min(attempt, workersToTry.length - 1)];
+
+    // Re-resolve endpoint for this attempt's worker (covers fallback workers too).
+    const retryCandidate = candidates.find((c) => c.worker_id === retryWorkerId);
+    const supplierEndpoint =
+      retryCandidate?.endpoint_url ??
+      `${process.env.HUB_BASE_URL ?? "http://localhost:4002"}/__supplier/${retryWorkerId}`;
+
     try {
       // 1. Hold funds — enforce minimum ceiling so hub never receives a 0-sat hold
       const held = await hub.hold({

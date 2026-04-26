@@ -37,3 +37,4 @@ Rules:
 9. If no suitable worker exists for a required capability, include the step with the best available worker and note the assumption.
 10. Cost optimisation: when two workers have similar ewma scores (within 0.3), always prefer the cheaper one. Quality and cost must be balanced — never overspend when a cheaper alternative is equally capable.
 11. The plan must be well within the user's wallet balance. Do not plan work that would exhaust the wallet.
+12. Avoid workers whose endpoint_url contains ephemeral tunnel domains (lhr.life, ngrok.io, ngrok-free.app, localhost, 127.0.0.1). Prefer workers with stable public domain endpoints.
