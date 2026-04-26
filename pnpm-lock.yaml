@@ -115,6 +115,9 @@ importers:
       '@agentmkt/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@agentmkt/db':
+        specifier: workspace:*
+        version: link:../../packages/db
       '@agentmkt/llm':
         specifier: workspace:*
         version: link:../../packages/llm
