@@ -1,22 +1,57 @@
 "use client";
 
 import { CheckCircle2, CircleDashed, Clock, GitBranch, ShieldCheck, Timer } from "lucide-react";
-import {
-  capabilityLabels,
-  getCandidatesForStep,
-  getCostEfficiency,
-  getQualityScore,
-  getValueScore,
-  getWorkerName,
-  routePreferenceLabels
-} from "@/lib/demo-data";
-import type { JobSnapshot, RoutePreference, Step, WorkerCandidate } from "@/lib/types";
+import { useEffect, useMemo, useState } from "react";
+import { discoverWorkers } from "@/lib/marketplace";
+import { getCapabilityLabel } from "@/lib/workers";
+import type { JobSnapshot, Step, WorkerCandidate } from "@/lib/types";
 import { StatusBadge } from "./StatusBadge";
 
-export function PlanTrace({ routePreference, snapshot }: { routePreference: RoutePreference; snapshot: JobSnapshot | null }) {
-  const steps = snapshot?.steps_progress ?? snapshot?.plan?.steps ?? [];
+export function PlanTrace({ snapshot }: { snapshot: JobSnapshot | null }) {
+  const steps = useMemo(() => snapshot?.steps_progress ?? snapshot?.plan?.steps ?? [], [snapshot]);
   const activeStep = steps.find((step) => step.status === "running") ?? steps.find((step) => step.status === "pending") ?? steps[0] ?? null;
-  const candidates = getCandidatesForStep(activeStep);
+  const activeCapability = activeStep?.capability_tag ?? null;
+  const [candidates, setCandidates] = useState<WorkerCandidate[]>([]);
+  const [candidateError, setCandidateError] = useState<string | null>(null);
+  const [isLoadingCandidates, setIsLoadingCandidates] = useState(false);
+
+  useEffect(() => {
+    if (!activeCapability) {
+      setCandidates([]);
+      setCandidateError(null);
+      return;
+    }
+
+    let cancelled = false;
+    setIsLoadingCandidates(true);
+    setCandidateError(null);
+
+    discoverWorkers({
+      capability_tags: [activeCapability],
+      include_external: true,
+      limit: 10
+    })
+      .then((response) => {
+        if (!cancelled) {
+          setCandidates(response.candidates);
+        }
+      })
+      .catch((caught) => {
+        if (!cancelled) {
+          setCandidates([]);
+          setCandidateError(caught instanceof Error ? caught.message : "Unable to load worker alternatives");
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setIsLoadingCandidates(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeCapability]);
 
   return (
     <section className="panel-strong route-panel overflow-hidden">
@@ -25,7 +60,7 @@ export function PlanTrace({ routePreference, snapshot }: { routePreference: Rout
           <div>
             <p className="section-label">Route</p>
             <h2 className="text-lg font-semibold">Execution plan</h2>
-            <p className="mt-1 text-xs text-muted-foreground">{routePreferenceLabels[routePreference].label} selection policy</p>
+            <p className="mt-1 text-xs text-muted-foreground">Built by the orchestrator from discovered workers and wallet state.</p>
           </div>
           {snapshot ? <StatusBadge status={snapshot.job.status} /> : null}
         </div>
@@ -46,25 +81,36 @@ export function PlanTrace({ routePreference, snapshot }: { routePreference: Rout
           <div className="flex items-center justify-between border-b border-border-subtle px-3 py-2">
             <div>
               <p className="text-sm font-medium">Worker alternatives</p>
-              <p className="text-xs text-muted-foreground">Compared by quality, price, reliability, and route fit.</p>
+              <p className="text-xs text-muted-foreground">
+                Live marketplace discovery for {activeStep ? getCapabilityLabel(activeStep.capability_tag) : "the active step"}.
+              </p>
             </div>
           </div>
-          <div className={snapshot?.job.status === "planning" ? "scan-line" : ""}>
-            {candidates.length > 0 ? (
+          <div className={snapshot?.job.status === "planning" || isLoadingCandidates ? "scan-line" : ""}>
+            {candidateError ? (
+              <p className="p-4 text-sm text-danger">{candidateError}</p>
+            ) : candidates.length > 0 ? (
               <div className="worker-table">
                 <div className="worker-row worker-row-header">
                   <span>Worker</span>
-                  <span>Quality</span>
+                  <span>EWMA</span>
                   <span>Price</span>
-                  <span>Reliability</span>
-                  <span>Fit</span>
+                  <span>Jobs</span>
+                  <span>Type</span>
+                  <span>Source</span>
                 </div>
                 {candidates.map((candidate) => (
-                  <CandidateRow candidate={candidate} key={candidate.id} selected={activeStep?.primary_worker_id === candidate.id} />
+                  <CandidateRow
+                    candidate={candidate}
+                    key={candidate.worker_id}
+                    selected={activeStep?.primary_worker_id === candidate.worker_id}
+                  />
                 ))}
               </div>
             ) : (
-              <p className="p-4 text-sm text-muted-foreground">Submit a request to compare candidate workers.</p>
+              <p className="p-4 text-sm text-muted-foreground">
+                {activeStep ? "No marketplace candidates returned for this capability." : "Submit a request to compare candidate workers."}
+              </p>
             )}
           </div>
         </div>
@@ -96,9 +142,9 @@ function StepRow({ step, index, active }: { step: Step; index: number; active: b
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="min-w-0">
             <p className="text-sm font-medium">
-              {index + 1}. {capabilityLabels[step.capability_tag]}
+              {index + 1}. {getCapabilityLabel(step.capability_tag)}
             </p>
-            <p className="truncate text-xs text-muted-foreground">{getWorkerName(step.primary_worker_id)}</p>
+            <p className="mono truncate text-xs text-muted-foreground">{step.primary_worker_id}</p>
           </div>
           <div className="flex items-center gap-2">
             <StatusBadge status={step.status} />
@@ -108,13 +154,15 @@ function StepRow({ step, index, active }: { step: Step; index: number; active: b
         <div className="mt-3 flex flex-wrap gap-3 text-xs text-muted-foreground">
           <span className="inline-flex items-center gap-1">
             <Timer className="h-3.5 w-3.5" />
-            {step.human_required ? "Human SLA" : "Automated"}
+            {step.human_required ? "Human step" : "Agent step"}
           </span>
           <span className="inline-flex items-center gap-1">
             <ShieldCheck className="h-3.5 w-3.5" />
             Hold ceiling {step.ceiling_sats} sats
           </span>
+          {step.fallback_ids.length > 0 ? <span className="mono">fallbacks={step.fallback_ids.length}</span> : null}
         </div>
+        {step.error ? <p className="mt-3 text-xs text-danger">{step.error}</p> : null}
       </div>
     </div>
   );
@@ -125,18 +173,18 @@ function CandidateRow({ candidate, selected }: { candidate: WorkerCandidate; sel
     <div className={`worker-row ${selected ? "is-selected" : ""}`}>
       <div className="min-w-0">
         <div className="flex items-center gap-2">
-          <span className="truncate text-sm font-medium text-foreground">{candidate.displayName}</span>
+          <span className="truncate text-sm font-medium text-foreground">{candidate.display_name}</span>
           {selected ? <span className="rounded-full bg-primary/15 px-2 py-0.5 text-xs text-primary">Selected</span> : null}
         </div>
-        <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{candidate.reason}</p>
+        <p className="mono mt-1 truncate text-xs text-muted-foreground">{candidate.worker_id}</p>
       </div>
-      <span className="mono text-sm">{getQualityScore(candidate)}</span>
-      <span className="mono text-sm">{candidate.priceSats}</span>
-      <span className="mono text-sm">{candidate.successRate}%</span>
-      <span className="mono text-sm">{getValueScore(candidate)}</span>
+      <span className="mono text-sm">{candidate.ewma.toFixed(1)}</span>
+      <span className="mono text-sm">{candidate.base_price_sats}</span>
+      <span className="mono text-sm">{candidate.total_jobs}</span>
+      <span className="text-xs text-muted-foreground">{candidate.type}</span>
+      <span className="text-xs text-muted-foreground">{candidate.source}</span>
       <div className="worker-row-mobile text-xs text-muted-foreground">
-        Quality {getQualityScore(candidate)} · {candidate.priceSats} sats · {candidate.successRate}% pass · Fit{" "}
-        {getCostEfficiency(candidate)}
+        EWMA {candidate.ewma.toFixed(1)}, {candidate.base_price_sats} sats, {candidate.total_jobs} jobs, {candidate.type}, {candidate.source}
       </div>
     </div>
   );

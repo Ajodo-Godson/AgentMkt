@@ -1,80 +1,78 @@
 "use client";
 
-import {
-  ArrowLeft,
-  Bot,
-  CheckCircle2,
-  Clock3,
-  Copy,
-  PlusCircle,
-  Search,
-  ShieldCheck,
-  Star,
-  Users,
-  Zap
-} from "lucide-react";
+import { ArrowLeft, Bot, CheckCircle2, Clock3, Copy, PlusCircle, Search, ShieldCheck, Star, Users, Zap } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
-import {
-  getCapabilityLabel,
-  getStoredUserWorkers,
-  seededMarketplaceWorkers,
-  workerCapabilityOptions
-} from "@/lib/workers";
-import type { CapabilityTag, MarketplaceWorker } from "@/lib/types";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { discoverWorkers } from "@/lib/marketplace";
+import { allCapabilityTags, getCapabilityLabel, workerCapabilityOptions } from "@/lib/workers";
+import type { CapabilityTag, WorkerCandidate } from "@/lib/types";
 
 type WorkerTypeFilter = "all" | "agent" | "human";
 type SortKey = "recommended" | "price" | "rating" | "jobs";
 
 export function WorkerMarketplace() {
-  const [userWorkers, setUserWorkers] = useState<MarketplaceWorker[]>([]);
+  const [workers, setWorkers] = useState<WorkerCandidate[]>([]);
   const [query, setQuery] = useState("");
   const [capability, setCapability] = useState<CapabilityTag | "all">("all");
   const [type, setType] = useState<WorkerTypeFilter>("all");
   const [sort, setSort] = useState<SortKey>("recommended");
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    setUserWorkers(getStoredUserWorkers());
-
-    const handleStorage = () => setUserWorkers(getStoredUserWorkers());
-    window.addEventListener("storage", handleStorage);
-    return () => window.removeEventListener("storage", handleStorage);
+  const loadWorkers = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const response = await discoverWorkers({
+        capability_tags: allCapabilityTags,
+        include_external: true,
+        limit: 50
+      });
+      setWorkers(response.candidates);
+    } catch (caught) {
+      setWorkers([]);
+      setError(caught instanceof Error ? caught.message : "Marketplace unavailable");
+    } finally {
+      setIsLoading(false);
+    }
   }, []);
 
-  const workers = useMemo(() => [...userWorkers, ...seededMarketplaceWorkers], [userWorkers]);
+  useEffect(() => {
+    loadWorkers();
+  }, [loadWorkers]);
+
   const filteredWorkers = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
     const nextWorkers = workers.filter((worker) => {
       const matchesQuery =
         normalizedQuery.length === 0 ||
-        worker.displayName.toLowerCase().includes(normalizedQuery) ||
-        worker.description.toLowerCase().includes(normalizedQuery) ||
-        worker.id.toLowerCase().includes(normalizedQuery);
-      const matchesCapability = capability === "all" || worker.capabilities.includes(capability);
+        worker.display_name.toLowerCase().includes(normalizedQuery) ||
+        worker.worker_id.toLowerCase().includes(normalizedQuery);
+      const matchesCapability = capability === "all" || worker.capability_tags.includes(capability);
       const matchesType = type === "all" || worker.type === type;
       return matchesQuery && matchesCapability && matchesType;
     });
 
     return [...nextWorkers].sort((left, right) => {
       if (sort === "price") {
-        return left.basePriceSats - right.basePriceSats;
+        return left.base_price_sats - right.base_price_sats;
       }
 
       if (sort === "rating") {
-        return (right.rating ?? 0) - (left.rating ?? 0);
+        return right.ewma - left.ewma;
       }
 
       if (sort === "jobs") {
-        return right.completedJobs - left.completedJobs;
+        return right.total_jobs - left.total_jobs;
       }
 
-      return scoreWorker(right) - scoreWorker(left);
+      return 0;
     });
   }, [capability, query, sort, type, workers]);
 
   const agentCount = workers.filter((worker) => worker.type === "agent").length;
-  const humanCount = workers.length - agentCount;
+  const humanCount = workers.filter((worker) => worker.type === "human").length;
   const medianPrice = getMedianPrice(workers);
 
   const copyWorkerId = async (workerId: string) => {
@@ -98,27 +96,36 @@ export function WorkerMarketplace() {
         <header className="mb-6 flex flex-col gap-4 border-b border-border-subtle pb-5 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <div className="mb-2 flex items-center gap-2">
-              <span className="inline-flex h-2 w-2 rounded-full bg-success" />
-              <span className="section-label">Active marketplace</span>
+              <span className={`inline-flex h-2 w-2 rounded-full ${error ? "bg-danger" : "bg-success"}`} />
+              <span className="section-label">Marketplace discovery</span>
             </div>
             <h1 className="text-2xl font-semibold">Worker marketplace</h1>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-              Compare available agents and human workers by capability, price, quality, and route readiness.
+              Live worker candidates from the marketplace discovery endpoint.
             </p>
           </div>
-          <Link
-            className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-primary px-4 text-sm font-semibold text-primary-foreground transition hover:brightness-110 focus:outline-none focus:ring-2 focus:ring-primary/50"
-            href="/workers/new"
-          >
-            <PlusCircle className="h-4 w-4" />
-            List worker
-          </Link>
+          <div className="flex flex-wrap gap-2">
+            <button
+              className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-border bg-muted px-4 text-sm font-medium text-foreground transition hover:bg-card-elevated focus:outline-none focus:ring-2 focus:ring-primary/40"
+              onClick={loadWorkers}
+              type="button"
+            >
+              Refresh
+            </button>
+            <Link
+              className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-primary px-4 text-sm font-semibold text-primary-foreground transition hover:brightness-110 focus:outline-none focus:ring-2 focus:ring-primary/50"
+              href="/workers/new"
+            >
+              <PlusCircle className="h-4 w-4" />
+              List worker
+            </Link>
+          </div>
         </header>
 
         <section className="mb-5 grid gap-3 md:grid-cols-3">
-          <Metric icon={ShieldCheck} label="Workers" value={workers.length.toString()} detail={`${agentCount} agents, ${humanCount} human`} />
-          <Metric icon={Zap} label="Median price" value={`${medianPrice} sats`} detail="Base route cost" />
-          <Metric icon={CheckCircle2} label="User listings" value={userWorkers.length.toString()} detail="Saved in this browser" />
+          <Metric icon={ShieldCheck} label="Returned" value={workers.length.toString()} detail={`${agentCount} agents, ${humanCount} human`} />
+          <Metric icon={Zap} label="Median price" value={medianPrice === null ? "Unavailable" : `${medianPrice} sats`} detail="Base worker price" />
+          <Metric icon={CheckCircle2} label="Source" value={error ? "Down" : "Live"} detail={error ?? "Marketplace /discover"} />
         </section>
 
         <section className="panel-strong overflow-hidden">
@@ -148,7 +155,7 @@ export function WorkerMarketplace() {
             <Select label="Sort" onChange={(value) => setSort(value as SortKey)} value={sort}>
               <option value="recommended">Recommended</option>
               <option value="price">Lowest price</option>
-              <option value="rating">Highest rating</option>
+              <option value="rating">Highest EWMA</option>
               <option value="jobs">Most jobs</option>
             </Select>
           </div>
@@ -161,13 +168,17 @@ export function WorkerMarketplace() {
             <span className="text-right">Action</span>
           </div>
 
-          <div>
-            {filteredWorkers.length > 0 ? (
+          <div className={isLoading ? "scan-line" : ""}>
+            {error ? (
+              <div className="p-8 text-sm text-danger">{error}</div>
+            ) : filteredWorkers.length > 0 ? (
               filteredWorkers.map((worker) => (
-                <WorkerRow copied={copiedId === worker.id} key={worker.id} onCopy={copyWorkerId} worker={worker} />
+                <WorkerRow copied={copiedId === worker.worker_id} key={worker.worker_id} onCopy={copyWorkerId} worker={worker} />
               ))
             ) : (
-              <div className="p-8 text-sm text-muted-foreground">No workers match the current filters.</div>
+              <div className="p-8 text-sm text-muted-foreground">
+                {isLoading ? "Loading marketplace workers." : "No workers match the current filters."}
+              </div>
             )}
           </div>
         </section>
@@ -194,7 +205,7 @@ function Metric({
         <span className="section-label">{label}</span>
       </div>
       <p className="text-2xl font-semibold">{value}</p>
-      <p className="mt-1 text-xs text-muted-foreground">{detail}</p>
+      <p className="mt-1 truncate text-xs text-muted-foreground">{detail}</p>
     </div>
   );
 }
@@ -231,11 +242,9 @@ function WorkerRow({
 }: {
   copied: boolean;
   onCopy: (workerId: string) => void;
-  worker: MarketplaceWorker;
+  worker: WorkerCandidate;
 }) {
   const WorkerIcon = worker.type === "agent" ? Bot : Users;
-  const qualityLabel = worker.rating === null ? "New" : worker.rating.toFixed(1);
-  const successLabel = worker.successRate === null ? "No jobs yet" : `${worker.successRate}% success`;
 
   return (
     <article className="grid gap-4 border-b border-border-subtle px-4 py-4 last:border-b-0 lg:grid-cols-[minmax(260px,1.45fr)_minmax(220px,1fr)_110px_120px_124px] lg:items-center">
@@ -244,20 +253,20 @@ function WorkerRow({
           <span className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border-subtle bg-background">
             <WorkerIcon className="h-4 w-4 text-primary" />
           </span>
-          <h2 className="truncate text-sm font-semibold">{worker.displayName}</h2>
+          <h2 className="truncate text-sm font-semibold">{worker.display_name}</h2>
           <span className="rounded-md border border-border-subtle bg-muted px-2 py-0.5 text-xs text-muted-foreground">
             {worker.type}
           </span>
-          {worker.status === "new" ? (
-            <span className="rounded-md border border-primary/35 bg-primary/10 px-2 py-0.5 text-xs text-primary">New</span>
-          ) : null}
+          <span className="rounded-md border border-border-subtle bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+            {worker.source}
+          </span>
         </div>
-        <p className="max-w-2xl text-sm leading-6 text-muted-foreground">{worker.description}</p>
-        <p className="mono mt-2 truncate text-xs text-muted-foreground">{worker.id}</p>
+        <p className="mono mt-2 truncate text-xs text-muted-foreground">{worker.worker_id}</p>
+        {worker.endpoint_url ? <p className="mt-1 truncate text-xs text-muted-foreground">{worker.endpoint_url}</p> : null}
       </div>
 
       <div className="flex flex-wrap gap-2">
-        {worker.capabilities.map((item) => (
+        {worker.capability_tags.map((item) => (
           <span className="rounded-md border border-border-subtle bg-background px-2 py-1 text-xs text-muted-foreground" key={item}>
             {getCapabilityLabel(item)}
           </span>
@@ -265,26 +274,26 @@ function WorkerRow({
       </div>
 
       <div>
-        <p className="mono text-sm font-semibold">{worker.basePriceSats}</p>
+        <p className="mono text-sm font-semibold">{worker.base_price_sats}</p>
         <p className="text-xs text-muted-foreground">sats base</p>
       </div>
 
       <div className="grid gap-1 text-sm">
         <span className="inline-flex items-center gap-1">
           <Star className="h-3.5 w-3.5 text-primary" />
-          {qualityLabel}
+          {worker.ewma.toFixed(1)}
         </span>
-        <span className="text-xs text-muted-foreground">{successLabel}</span>
+        <span className="text-xs text-muted-foreground">{worker.total_jobs} jobs</span>
         <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
           <Clock3 className="h-3.5 w-3.5" />
-          {formatLatency(worker)}
+          {worker.type === "human" ? "manual" : "endpoint"}
         </span>
       </div>
 
       <div className="flex items-center gap-2 lg:justify-end">
         <button
           className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-border bg-muted px-3 text-xs font-medium text-foreground transition hover:bg-card-elevated focus:outline-none focus:ring-2 focus:ring-primary/40"
-          onClick={() => onCopy(worker.id)}
+          onClick={() => onCopy(worker.worker_id)}
           type="button"
         >
           <Copy className="h-3.5 w-3.5" />
@@ -295,37 +304,16 @@ function WorkerRow({
   );
 }
 
-function scoreWorker(worker: MarketplaceWorker): number {
-  const rating = worker.rating ?? 3.5;
-  const success = worker.successRate ?? 70;
-  const jobs = Math.min(worker.completedJobs, 400) / 8;
-  const pricePenalty = worker.basePriceSats / (worker.type === "human" ? 24 : 8);
-  const newBoost = worker.status === "new" ? 6 : 0;
-  return rating * 18 + success * 0.55 + jobs - pricePenalty + newBoost;
-}
-
-function getMedianPrice(workers: MarketplaceWorker[]): number {
+function getMedianPrice(workers: WorkerCandidate[]): number | null {
   if (workers.length === 0) {
-    return 0;
+    return null;
   }
 
-  const prices = workers.map((worker) => worker.basePriceSats).sort((left, right) => left - right);
+  const prices = workers.map((worker) => worker.base_price_sats).sort((left, right) => left - right);
   const midpoint = Math.floor(prices.length / 2);
   if (prices.length % 2 === 0) {
     return Math.round((prices[midpoint - 1] + prices[midpoint]) / 2);
   }
 
   return prices[midpoint];
-}
-
-function formatLatency(worker: MarketplaceWorker): string {
-  if (worker.type === "human") {
-    return "manual";
-  }
-
-  if (worker.latencyMs === null) {
-    return "pending";
-  }
-
-  return `${(worker.latencyMs / 1000).toFixed(1)}s p95`;
 }

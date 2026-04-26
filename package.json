@@ -10,7 +10,6 @@
     "build": "pnpm -r build",
     "dev": "pnpm -r --parallel dev",
     "dev:web": "pnpm --dir apps/web dev",
-    "dev:web:mock": "pnpm --dir apps/web mock",
     "dev:tg": "pnpm --dir apps/tg-bot dev",
     "lint": "pnpm -r lint",
     "typecheck": "pnpm -r typecheck",

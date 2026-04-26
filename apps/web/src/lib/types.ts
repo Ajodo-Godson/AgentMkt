@@ -1,68 +1,52 @@
-export type JobStatus = "intake" | "planning" | "awaiting_user" | "executing" | "completed" | "failed" | "cancelled";
+import type {
+  CapabilityTag,
+  CfoVerdict,
+  ConfirmRequest,
+  CreateJobRequest,
+  CreateJobResponse,
+  DiscoverRequest,
+  DiscoverResponse,
+  GetJobResponse,
+  Job,
+  JobBalanceResponse,
+  JobStatus,
+  ListWorkerRequest,
+  Plan,
+  RatingRequest,
+  RatingResponse,
+  ReputationSnapshot,
+  Step,
+  StepResult,
+  Worker,
+  WorkerCandidate
+} from "@agentmkt/contracts";
 
-export type CapabilityTag =
-  | "summarization"
-  | "translation_es"
-  | "translation_fr"
-  | "translation_de"
-  | "tts_en"
-  | "tts_fr"
-  | "image_generation"
-  | "code_review"
-  | "fact_check"
-  | "voiceover_human"
-  | "creative_writing_human";
+export type {
+  CapabilityTag,
+  CfoVerdict,
+  ConfirmRequest,
+  CreateJobRequest,
+  CreateJobResponse,
+  DiscoverRequest,
+  DiscoverResponse,
+  GetJobResponse,
+  Job,
+  JobBalanceResponse,
+  JobStatus,
+  ListWorkerRequest,
+  Plan,
+  RatingRequest,
+  RatingResponse,
+  ReputationSnapshot,
+  Step,
+  StepResult,
+  Worker,
+  WorkerCandidate
+};
 
-export interface Job {
-  id: string;
-  user_id: string;
-  prompt: string;
-  locked_sats: number;
-  spent_sats: number;
-  status: JobStatus;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface Plan {
-  id: string;
-  job_id: string;
-  version: number;
-  steps: Step[];
-  total_estimate_sats: number;
-  assumptions: string[];
-  status: "draft" | "approved" | "rejected" | "superseded";
-  created_at: string;
-}
-
-export interface Step {
-  id: string;
-  plan_id: string;
-  dag_node: string;
-  capability_tag: CapabilityTag;
-  primary_worker_id: string;
-  fallback_ids: string[];
-  estimate_sats: number;
-  ceiling_sats: number;
-  depends_on: string[];
-  human_required: boolean;
-  optional: boolean;
-  status: "pending" | "running" | "succeeded" | "failed" | "skipped";
-  retries_left: number;
-  result?: StepResult;
-  error?: string;
-}
-
-export type StepResult =
-  | { kind: "json"; data: unknown }
-  | { kind: "text"; text: string }
-  | { kind: "file"; mime_type: string; storage_url: string };
-
-export interface JobSnapshot {
-  job: Job;
-  plan: Plan | null;
-  steps_progress: Step[];
+export interface JobSnapshot extends GetJobResponse {
   final_output?: string | null;
+  hub_bolt11?: string | null;
   debug?: {
     wallet_balance_sats?: number | null;
     error?: string | null;
@@ -76,34 +60,23 @@ export interface JobSnapshot {
   } | null;
 }
 
-export interface WorkerCandidate {
-  id: string;
-  displayName: string;
-  type: "agent" | "human";
-  rating: number;
-  priceSats: number;
-  successRate: number;
-  latencyMs: number | null;
-  source: "internal" | "402index";
-  reason: string;
+export interface WorkerDetailResponse {
+  worker: Worker;
+  reputation: ReputationSnapshot[];
 }
 
-export type RoutePreference = "balanced" | "lowest_cost" | "highest_quality" | "fastest";
+export interface ServiceHealthItem {
+  ok: boolean;
+  status?: number;
+  detail?: unknown;
+}
 
-export interface MarketplaceWorker {
-  id: string;
-  displayName: string;
-  type: "agent" | "human";
-  capabilities: CapabilityTag[];
-  basePriceSats: number;
-  rating: number | null;
-  successRate: number | null;
-  completedJobs: number;
-  latencyMs: number | null;
-  source: "internal" | "402index" | "user";
-  status: "active" | "new";
-  description: string;
-  contact: string;
-  listedAt: string;
-  reason: string;
+export interface ServiceHealthResponse {
+  ok: boolean;
+  services: {
+    orchestrator: ServiceHealthItem;
+    marketplace: ServiceHealthItem;
+    hub: ServiceHealthItem;
+    lexe: ServiceHealthItem;
+  };
 }
