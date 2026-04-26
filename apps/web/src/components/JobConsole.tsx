@@ -9,7 +9,7 @@ import { PlanTrace } from "./PlanTrace";
 import { RatingPrompt } from "./RatingPrompt";
 import { StatusBadge } from "./StatusBadge";
 import { TreasuryPanel } from "./TreasuryPanel";
-import { createTopupInvoice, getJobBalance, getServiceHealth, getTopupStatus, type ExtendedJobBalanceResponse } from "@/lib/hub";
+import { createTopupInvoice, getJobBalance, getServiceHealth, getTopupStatus, getWalletBalance, type ExtendedJobBalanceResponse } from "@/lib/hub";
 import { clarifyJob, confirmJob, createJob, getJob, startJob } from "@/lib/orchestrator";
 import { connectWallet, userIdFromPubkey, type ConnectedWallet } from "@/lib/webln";
 import { DEFAULT_PROMPT } from "@/lib/workers";
@@ -37,14 +37,21 @@ export function JobConsole({ initialJobId }: { initialJobId?: string }) {
   const [startingJob, setStartingJob] = useState(false);
   const [topupAmountInput, setTopupAmountInput] = useState(String(DEFAULT_TOPUP_SATS));
   const [accountBalance, setAccountBalance] = useState<ExtendedJobBalanceResponse | null>(null);
+  const currentUserId = snapshot?.job.user_id ?? (wallet ? userIdFromPubkey(wallet.pubkey) : buyerUserId);
 
   const loadJob = useCallback(async (id: string) => {
     const nextSnapshot = await getJob(id);
     setSnapshot(nextSnapshot);
   }, []);
 
-  const loadAccountBalance = useCallback(async (jobId: string) => {
+  const loadJobScopedBalance = useCallback(async (jobId: string) => {
     const nextBalance = await getJobBalance(jobId);
+    setAccountBalance(nextBalance);
+    return nextBalance;
+  }, []);
+
+  const loadUserBalance = useCallback(async (userId: string) => {
+    const nextBalance = await getWalletBalance(userId);
     setAccountBalance(nextBalance);
     return nextBalance;
   }, []);
@@ -93,13 +100,9 @@ export function JobConsole({ initialJobId }: { initialJobId?: string }) {
   }, [jobId, loadJob, snapshot?.job.status]);
 
   useEffect(() => {
-    if (!jobId) {
-      setAccountBalance(null);
-      return;
-    }
-
     let cancelled = false;
-    loadAccountBalance(jobId).catch(() => {
+    const loadBalance = jobId ? loadJobScopedBalance(jobId) : loadUserBalance(currentUserId);
+    loadBalance.catch(() => {
       if (!cancelled) {
         setAccountBalance(null);
       }
@@ -108,7 +111,7 @@ export function JobConsole({ initialJobId }: { initialJobId?: string }) {
     return () => {
       cancelled = true;
     };
-  }, [jobId, loadAccountBalance, snapshot?.job.updated_at]);
+  }, [currentUserId, jobId, loadJobScopedBalance, loadUserBalance, snapshot?.job.updated_at]);
 
   useEffect(() => {
     if (!topupBolt11 || !topupJobId || topupStatus !== "awaiting" || startingJob) {
@@ -126,7 +129,7 @@ export function JobConsole({ initialJobId }: { initialJobId?: string }) {
         setStartingJob(true);
         setTopupStatus("paid");
         await startJob(topupJobId);
-        await Promise.all([loadJob(topupJobId), loadAccountBalance(topupJobId)]);
+        await Promise.all([loadJob(topupJobId), loadJobScopedBalance(topupJobId)]);
       } catch (caught) {
         if (!cancelled) {
           setTopupStatus("error");
@@ -143,7 +146,7 @@ export function JobConsole({ initialJobId }: { initialJobId?: string }) {
       cancelled = true;
       window.clearInterval(interval);
     };
-  }, [loadAccountBalance, loadJob, startingJob, topupBolt11, topupJobId, topupStatus]);
+  }, [loadJob, loadJobScopedBalance, startingJob, topupBolt11, topupJobId, topupStatus]);
 
   const handleConnectWallet = useCallback(async () => {
     setWalletConnecting(true);
@@ -181,12 +184,12 @@ export function JobConsole({ initialJobId }: { initialJobId?: string }) {
       setJobId(created.job_id);
       window.history.pushState(null, "", `/jobs/${created.job_id}`);
       await loadJob(created.job_id);
-      const balance = await loadAccountBalance(created.job_id);
+      const balance = await loadJobScopedBalance(created.job_id);
       if (balance.available_sats > 0) {
         setStartingJob(true);
         try {
           await startJob(created.job_id);
-          await Promise.all([loadJob(created.job_id), loadAccountBalance(created.job_id)]);
+          await Promise.all([loadJob(created.job_id), loadJobScopedBalance(created.job_id)]);
         } finally {
           setStartingJob(false);
         }
@@ -207,7 +210,7 @@ export function JobConsole({ initialJobId }: { initialJobId?: string }) {
     } finally {
       setIsLaunching(false);
     }
-  }, [loadAccountBalance, loadJob, prompt, topupAmountSats, topupAmountValid, wallet]);
+  }, [loadJob, loadJobScopedBalance, prompt, topupAmountSats, topupAmountValid, wallet]);
 
   const handleConfirm = useCallback(
     async (confirmed: boolean) => {
@@ -461,7 +464,7 @@ export function JobConsole({ initialJobId }: { initialJobId?: string }) {
           />
           <PlanTrace snapshot={snapshot} />
           <div className="space-y-4">
-            <TreasuryPanel snapshot={snapshot} />
+            <TreasuryPanel snapshot={snapshot} userId={currentUserId} />
             <RatingPrompt snapshot={snapshot} />
             <section className="panel p-4" id="trace">
               <div className="mb-3 flex items-center gap-2">
