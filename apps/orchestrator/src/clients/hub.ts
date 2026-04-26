@@ -86,7 +86,7 @@ export const hub = {
 
   walletBalance: async (user_id: string) => {
     if (useMocks()) return mockHub.walletBalance(user_id);
-    const res = await fetch(`${BASE}/hub/wallet/${encodeURIComponent(user_id)}/balance`);
+    const res = await fetch(`${BASE}/wallet/${encodeURIComponent(user_id)}/balance`);
     if (!res.ok) throw new Error(`Hub /hub/wallet/${user_id}/balance → ${res.status}`);
     return res.json() as Promise<{
       topped_up_sats: number;
