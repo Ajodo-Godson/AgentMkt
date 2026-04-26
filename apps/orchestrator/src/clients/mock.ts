@@ -43,6 +43,10 @@ export const mockHub = {
     brief: string;
     payout_sats: number;
   }) => ({ notified: true }),
+
+  walletBalance: async (_user_id: string) => ({
+    available_sats: 50_000,
+  }),
 };
 
 export const mockMarketplace = {
