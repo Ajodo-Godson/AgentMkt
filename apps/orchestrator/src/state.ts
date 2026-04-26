@@ -60,6 +60,12 @@ export const OrchestratorState = Annotation.Root({
     reducer: (_, next) => next,
     default: () => null,
   }),
+
+  // User wallet balance at job start; set by CEO intake, read by CFO gate.
+  wallet_balance_sats: Annotation<number>({
+    reducer: (_, next) => next,
+    default: () => 0,
+  }),
 });
 
 export type OrchestratorStateType = typeof OrchestratorState.State;
