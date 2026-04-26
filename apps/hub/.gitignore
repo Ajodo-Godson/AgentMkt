@@ -1,0 +1,4 @@
+bin/lexe-sidecar
+bin/data/
+bin/*.log
+dist/
