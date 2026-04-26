@@ -1,5 +1,12 @@
 import { Annotation } from "@langchain/langgraph";
-import type { Job, Plan, Step, CfoVerdict, WorkerCandidate } from "@agentmkt/contracts";
+import type {
+  Job,
+  Plan,
+  Step,
+  CfoVerdict,
+  WorkerCandidate,
+  CapabilityTag,
+} from "@agentmkt/contracts";
 
 export const OrchestratorState = Annotation.Root({
   job: Annotation<Job>(),
@@ -65,6 +72,22 @@ export const OrchestratorState = Annotation.Root({
   wallet_balance_sats: Annotation<number>({
     reducer: (_, next) => next,
     default: () => 0,
+  }),
+
+  // Structured CEO intake output used to constrain COO planning.
+  intake_intent: Annotation<string | null>({
+    reducer: (_, next) => next,
+    default: () => null,
+  }),
+
+  requested_capability_tags: Annotation<CapabilityTag[]>({
+    reducer: (_, next) => next,
+    default: () => [],
+  }),
+
+  request_constraints: Annotation<Record<string, unknown>>({
+    reducer: (_, next) => next,
+    default: () => ({}),
   }),
 });
 
