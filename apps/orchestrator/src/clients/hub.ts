@@ -4,7 +4,7 @@ import type { StepResult } from "@agentmkt/contracts";
 import { mockHub } from "./mock.js";
 
 const BASE = process.env.HUB_BASE_URL ?? "http://localhost:4002";
-const USE_MOCKS = process.env.USE_MOCKS === "true";
+const useMocks = () => process.env.USE_MOCKS === "true";
 
 async function post<T>(path: string, body: unknown): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
@@ -21,17 +21,17 @@ async function post<T>(path: string, body: unknown): Promise<T> {
 
 export const hub = {
   topup: (req: { job_id: string; amount_sats: number }) =>
-    USE_MOCKS
+    useMocks()
       ? mockHub.topup(req)
       : post<{ bolt11: string; expires_at: string }>("/hub/topup", req),
 
   topupStatus: (req: { bolt11: string }) =>
-    USE_MOCKS
+    useMocks()
       ? mockHub.topupStatus(req)
       : post<{ paid: boolean; amount_sats: number }>("/hub/topup/status", req),
 
   hold: (req: { job_id: string; step_id: string; ceiling_sats: number }) =>
-    USE_MOCKS
+    useMocks()
       ? mockHub.hold(req)
       : post<{ hold_invoice_id: string; bolt11: string }>("/hub/hold", req),
 
@@ -40,7 +40,7 @@ export const hub = {
     supplier_endpoint: string;
     supplier_payload: unknown;
   }) =>
-    USE_MOCKS
+    useMocks()
       ? mockHub.forward(req)
       : post<{ result: unknown; paid_to_supplier_sats: number; fee_sats: number }>(
           "/hub/forward",
@@ -48,12 +48,12 @@ export const hub = {
         ),
 
   settle: (req: { hold_invoice_id: string }) =>
-    USE_MOCKS
+    useMocks()
       ? mockHub.settle(req)
       : post<{ settled_sats: number; fee_sats: number }>("/hub/settle", req),
 
   cancel: (req: { hold_invoice_id: string; reason: string }) =>
-    USE_MOCKS
+    useMocks()
       ? mockHub.cancel(req)
       : post<{ refunded_sats: number }>("/hub/cancel", req),
 
@@ -63,7 +63,7 @@ export const hub = {
     brief: string;
     payout_sats: number;
   }) =>
-    USE_MOCKS
+    useMocks()
       ? mockHub.notifyHuman(req)
       : post<{ notified: true }>("/hub/notify-human", req),
 
@@ -80,5 +80,12 @@ export const hub = {
       fees_sats: number;
       available_sats: number;
     }>;
+  },
+
+  walletBalance: async (user_id: string) => {
+    if (useMocks()) return mockHub.walletBalance(user_id);
+    const res = await fetch(`${BASE}/hub/wallet/${user_id}/balance`);
+    if (!res.ok) throw new Error(`Hub /hub/wallet/${user_id}/balance → ${res.status}`);
+    return res.json() as Promise<{ available_sats: number }>;
   },
 };
