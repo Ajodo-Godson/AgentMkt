@@ -17,7 +17,7 @@ import {
   stopSidecar,
   waitForSidecarHealth,
 } from "./lib/sidecar.js";
-import { lexeClient } from "./lightning/lexe-client.js";
+import { activeLightningBackend, lightningClient } from "./lightning/client.js";
 import { closeDb } from "@agentmkt/db";
 
 import { topupRoute } from "./routes/topup.js";
@@ -54,15 +54,16 @@ app.get("/health", (c) => c.json({ ok: true, service: "hub" }));
 
 app.get("/health/lexe", async (c) => {
   try {
-    const h = await lexeClient.health();
-    const info = await lexeClient.nodeInfo();
+    const h = await lightningClient.health();
+    const info = await lightningClient.nodeInfo();
     return c.json({
       ok: true,
+      backend: activeLightningBackend,
       lexe_status: h.status,
       lexe_version: info.version,
       node_pk: info.node_pk,
-      lightning_balance_sats: Number.parseInt(info.lightning_balance, 10),
-      onchain_balance_sats: Number.parseInt(info.onchain_balance, 10),
+      lightning_balance_sats: info.lightning_balance_sats,
+      onchain_balance_sats: info.onchain_balance_sats,
       num_usable_channels: info.num_usable_channels,
     });
   } catch (err) {
@@ -110,8 +111,9 @@ async function main(): Promise<void> {
   logger.info(
     {
       port: env.PORT_HUB,
+      lightning_backend: activeLightningBackend,
       sidecar: env.LEXE_SIDECAR_URL,
-      network: env.LEXE_NETWORK,
+      lnd_rest: env.LND_REST_URL,
       use_mocks: env.USE_MOCKS,
     },
     "hub booting",
@@ -119,22 +121,24 @@ async function main(): Promise<void> {
 
   let expiryTimer: NodeJS.Timeout | null = null;
 
-  if (env.LEXE_AUTOSPAWN && isSidecarBinaryPresent()) {
-    startSidecar();
-  } else if (!env.LEXE_AUTOSPAWN) {
-    logger.info("Lexe sidecar autospawn disabled; expecting an external sidecar");
-  } else {
-    logger.warn(
-      { binPath: "apps/hub/bin/lexe-sidecar" },
-      "Sidecar binary not present. Run `apps/hub/scripts/install-sidecar.sh` or start it manually. Hub will boot but Lightning calls will fail.",
-    );
-  }
+  if (activeLightningBackend === "lexe") {
+    if (env.LEXE_AUTOSPAWN && isSidecarBinaryPresent()) {
+      startSidecar();
+    } else if (!env.LEXE_AUTOSPAWN) {
+      logger.info("Lexe sidecar autospawn disabled; expecting an external sidecar");
+    } else {
+      logger.warn(
+        { binPath: "apps/hub/bin/lexe-sidecar" },
+        "Sidecar binary not present. Run `apps/hub/scripts/install-sidecar.sh` or start it manually. Hub will boot but Lightning calls will fail.",
+      );
+    }
 
-  // Don't block boot on sidecar health (it can come up async); just kick off
-  // a non-fatal probe so we surface issues in logs early.
-  waitForSidecarHealth(20_000).catch((e) => {
-    logger.warn({ err: e }, "sidecar health probe failed");
-  });
+    waitForSidecarHealth(20_000).catch((e) => {
+      logger.warn({ err: e }, "sidecar health probe failed");
+    });
+  } else {
+    logger.info({ backend: activeLightningBackend }, "skipping Lexe sidecar boot");
+  }
 
   expiryTimer = startHoldExpirySweeper(60_000);
 
@@ -146,7 +150,7 @@ async function main(): Promise<void> {
   const shutdown = async (signal: string) => {
     logger.info({ signal }, "shutting down");
     if (expiryTimer) clearInterval(expiryTimer);
-    stopSidecar();
+    if (activeLightningBackend === "lexe") stopSidecar();
     await closeDb();
     process.exit(0);
   };

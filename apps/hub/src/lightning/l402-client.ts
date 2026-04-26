@@ -5,7 +5,7 @@
 //   - Request hits an L402 endpoint without auth.
 //   - Server responds 402 + `WWW-Authenticate: L402 macaroon="...", invoice="..."`
 //   - We parse the macaroon (base64) and bolt11 invoice.
-//   - We pay the invoice via the Lexe sidecar to obtain a preimage.
+//   - We pay the invoice via the configured Lightning backend to obtain a preimage.
 //   - We retry the request with `Authorization: L402 <b64macaroon>:<hexpreimage>`.
 //   - 200 + result body comes back.
 //
@@ -21,7 +21,7 @@
 
 import bolt11 from "bolt11";
 import { createHash } from "node:crypto";
-import { lexeClient } from "./lexe-client.js";
+import { lightningClient } from "./client.js";
 import { childLogger } from "../lib/logger.js";
 import { HubError } from "../lib/errors.js";
 import { maxRoutingFeeForInvoice } from "../policy/fee.js";
@@ -41,7 +41,7 @@ export interface L402Challenge {
 
 export interface L402PaidPayment {
   preimage: string; // hex
-  paid_amount_sats: number; // what Lexe says we paid (== invoice amount in normal cases)
+  paid_amount_sats: number; // what the payment rail says we paid
   routing_fee_sats: number; // Lightning routing fee paid on top
   payment_index: string;
 }
@@ -168,8 +168,8 @@ function sha256HexOfHex(hex: string): string {
   if (!/^[0-9a-fA-F]{64}$/.test(hex)) {
     throw new HubError(
       502,
-      "lexe_bad_preimage",
-      "Lexe returned a malformed payment preimage",
+      "payment_bad_preimage",
+      "Lightning backend returned a malformed payment preimage",
     );
   }
   return createHash("sha256").update(Buffer.from(hex, "hex")).digest("hex");
@@ -180,7 +180,7 @@ function sha256HexOfHex(hex: string): string {
 // -----------------------------------------------------------------------------
 
 /**
- * Pay an L402 challenge invoice via Lexe, returning the preimage we'll
+ * Pay an L402 challenge invoice via the configured Lightning backend, returning the preimage we'll
  * present in the retried request. Surfaces routing fee for ledger booking.
  */
 export async function payL402Invoice(
@@ -204,14 +204,14 @@ export async function payL402Invoice(
     "paying L402 invoice",
   );
 
-  const pay = await lexeClient.payInvoice({
+  const pay = await lightningClient.payInvoice({
     bolt11: challenge.invoice,
     note: `L402 forward for hold ${ctx.hold_invoice_id}`,
   });
 
   // Block until the payment finalizes. 60s ceiling — Lightning hops should
   // resolve in <5s but we're paranoid for the demo.
-  const finalized = await lexeClient.waitForPayment(pay.index, {
+  const finalized = await lightningClient.waitForPayment(pay.index, {
     timeoutMs: 60_000,
     intervalMs: 750,
   });
@@ -228,7 +228,7 @@ export async function payL402Invoice(
   if (!preimage) {
     throw new HubError(
       502,
-      "lexe_no_preimage",
+      "payment_no_preimage",
       `completed outbound payment ${pay.index} did not include a preimage`,
     );
   }
@@ -241,8 +241,8 @@ export async function payL402Invoice(
     );
   }
 
-  const paid_sats = numFromString(finalized.amount, challenge.invoice_amount_sats);
-  const routing_fee_sats = numFromString(finalized.fees, 0);
+  const paid_sats = finalized.amount_sats ?? challenge.invoice_amount_sats;
+  const routing_fee_sats = finalized.fees_sats ?? 0;
 
   const cap = maxRoutingFeeForInvoice(challenge.invoice_amount_sats);
   if (routing_fee_sats > cap) {
@@ -258,12 +258,6 @@ export async function payL402Invoice(
     routing_fee_sats,
     payment_index: pay.index,
   };
-}
-
-function numFromString(s: string | null | undefined, fallback: number): number {
-  if (s === null || s === undefined) return fallback;
-  const n = Number.parseFloat(s);
-  return Number.isFinite(n) ? Math.floor(n) : fallback;
 }
 
 // -----------------------------------------------------------------------------
@@ -353,7 +347,7 @@ export async function l402Forward(input: ForwardInput): Promise<L402ForwardOk> {
   // Drain the 402 body so the connection can be reused (best-effort).
   await initial.body?.cancel();
 
-  // Pay via Lexe.
+  // Pay via the configured Lightning backend.
   const payment = await payL402Invoice(challenge, {
     ceiling_sats: input.ceiling_sats,
     hold_invoice_id: input.hold_invoice_id,

@@ -7,7 +7,8 @@
 //                ledger entry that "consumes" the held funds.
 //
 //   HUMAN step:  no payment has happened yet. /settle is when the human
-//                actually gets paid: we call lexeClient.payInvoice on their
+//                actually gets paid: we call the configured Lightning backend
+//                on their
 //                registered payout BOLT11, then write payout + fee + settle
 //                entries.
 
@@ -16,7 +17,7 @@ import * as z from "zod";
 import { getHold, updateHoldStatus } from "../ledger/holds.js";
 import { recordPosting } from "../ledger/postings.js";
 import { computeFee } from "../policy/fee.js";
-import { lexeClient } from "../lightning/lexe-client.js";
+import { lightningClient } from "../lightning/client.js";
 import { jsonError, HubError } from "../lib/errors.js";
 import { childLogger } from "../lib/logger.js";
 
@@ -102,13 +103,13 @@ export const settleRoute = new Hono().post("/settle", async (c) => {
         "paying human worker",
       );
 
-      const pay = await lexeClient.payInvoice({
+      const pay = await lightningClient.payInvoice({
         bolt11: hold.human_payout_bolt11,
         note: `AgentMkt human payout for hold ${hold_invoice_id}`,
       });
       payment_index = pay.index;
 
-      const finalized = await lexeClient.waitForPayment(pay.index, {
+      const finalized = await lightningClient.waitForPayment(pay.index, {
         timeoutMs: 60_000,
         intervalMs: 750,
       });
@@ -119,8 +120,7 @@ export const settleRoute = new Hono().post("/settle", async (c) => {
           `payment ${pay.index} ended in status ${finalized.status} (${finalized.status_msg ?? ""})`,
         );
       }
-      payout_preimage =
-        (finalized as unknown as { preimage?: string }).preimage ?? null;
+      payout_preimage = finalized.preimage ?? null;
 
       await recordPosting({
         job_id: hold.job_id,

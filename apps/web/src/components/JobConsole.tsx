@@ -388,9 +388,9 @@ export function JobConsole({ initialJobId }: { initialJobId?: string }) {
             <ServiceLine item={health?.services.orchestrator} label="Orchestrator" />
             <ServiceLine item={health?.services.marketplace} label="Marketplace" />
             <ServiceLine item={health?.services.hub} label="Hub" />
-            <ServiceLine item={health?.services.lexe} label="Lexe" />
+            <ServiceLine item={health?.services.lexe} label="Lightning rail" />
             <div className="flex items-baseline justify-between gap-3 pt-3 text-muted-foreground">
-              <span>Balance</span>
+              <span>Account balance</span>
               <span className="mono text-foreground">
                 {formatMaybeSats(accountBalance?.available_sats ?? snapshot?.debug?.wallet_balance_sats)}
               </span>

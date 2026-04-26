@@ -4,7 +4,7 @@
 import { Hono } from "hono";
 import * as z from "zod";
 import { schema, db } from "@agentmkt/db";
-import { lexeClient, lexeUtils } from "../lightning/lexe-client.js";
+import { lightningClient } from "../lightning/client.js";
 import { recordTopupIdempotent } from "../ledger/postings.js";
 import { jsonError } from "../lib/errors.js";
 import { childLogger } from "../lib/logger.js";
@@ -33,7 +33,7 @@ export const topupRoute = new Hono()
       }
       const { job_id, amount_sats } = parsed.data;
 
-      const inv = await lexeClient.createInvoice({
+      const inv = await lightningClient.createInvoice({
         sats: amount_sats,
         description: `AgentMkt topup for ${job_id}`,
         expiresInSecs: env.HUB_DEFAULT_INVOICE_EXPIRY_SECS,
@@ -93,19 +93,20 @@ export const topupRoute = new Hono()
         );
       }
 
-      const payment = await lexeClient.getPayment(mapping.payment_index);
+      const payment = await lightningClient.getPayment(mapping.payment_index);
       const paid = payment.status === "completed";
       if (!paid) {
         return c.json({ paid: false, amount_sats: 0 });
       }
 
-      const amount_sats = lexeUtils.stringToSats(payment.amount) || mapping.amount_sats;
+      const amount_sats = payment.amount_sats || mapping.amount_sats;
 
       // Idempotent ledger write — repeated polls won't double-credit.
       await recordTopupIdempotent({
         job_id: mapping.job_id,
         bolt11,
         amount_sats,
+        preimage: payment.preimage,
         meta: { payment_index: mapping.payment_index, payment_hash: mapping.payment_hash },
       });
 

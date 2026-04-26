@@ -16,6 +16,7 @@ loadEnv({ path: path.join(repoRoot, ".env") });
 const envSchema = z.object({
   DATABASE_URL: z.string().url().or(z.string().startsWith("postgres")),
 
+  HUB_LIGHTNING_BACKEND: z.enum(["lexe", "lnd"]).default("lexe"),
   LEXE_SIDECAR_URL: z.string().url().default("http://localhost:5393"),
   LEXE_NETWORK: z.enum(["mainnet", "testnet", "regtest"]).default("mainnet"),
   HUB_BASE_URL: z.string().url().default("http://localhost:4002"),
@@ -25,6 +26,20 @@ const envSchema = z.object({
   LEXE_ROOT_SEED_PATH: z.string().optional().default(""),
   LEXE_DATA_DIR: z.string().optional().default(""),
   LEXE_AUTOSPAWN: z
+    .enum(["true", "false"])
+    .default("true")
+    .transform((v) => v === "true"),
+
+  LND_REST_URL: z.string().url().default("https://127.0.0.1:8080"),
+  LND_MACAROON_HEX: z.string().optional().default(""),
+  LND_MACAROON_PATH: z.string().optional().default(""),
+  LND_TLS_CERT_PATH: z.string().optional().default(""),
+  LND_TLS_CERT_PEM: z.string().optional().default(""),
+  LND_TLS_SKIP_VERIFY: z
+    .enum(["true", "false"])
+    .default("false")
+    .transform((v) => v === "true"),
+  LND_PRIVATE_INVOICES: z
     .enum(["true", "false"])
     .default("true")
     .transform((v) => v === "true"),
