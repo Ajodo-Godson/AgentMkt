@@ -39,7 +39,7 @@ app.post("/jobs", async (c) => {
     return c.json({ error: "validation", details: parsed.error.issues }, 400);
   }
 
-  const { user_id, prompt, budget_sats } = parsed.data;
+  const { user_id, prompt } = parsed.data;
   const job_id = buildJobId();
   const now = new Date().toISOString();
 
@@ -47,7 +47,6 @@ app.post("/jobs", async (c) => {
     id: job_id,
     user_id,
     prompt,
-    budget_sats,
     locked_sats: 0,
     spent_sats: 0,
     status: "intake",
@@ -101,6 +100,7 @@ app.get("/jobs/:job_id", async (c) => {
   // Read final_output from LangGraph checkpointer state if job completed
   let final_output: string | null = null;
   let hub_bolt11: string | null = null;
+  let debug: Record<string, unknown> | null = null;
   try {
     const config = { configurable: { thread_id: job_id } };
     const graphState = await graph.getState(config);
@@ -108,12 +108,18 @@ app.get("/jobs/:job_id", async (c) => {
       const vals = graphState.values as Record<string, unknown>;
       final_output = (vals.final_output as string | null) ?? null;
       hub_bolt11 = (vals.hub_bolt11 as string | null) ?? null;
+      debug = {
+        wallet_balance_sats: vals.wallet_balance_sats ?? null,
+        error: vals.error ?? null,
+        plan_iterations: vals.plan_iterations ?? null,
+        cfo_verdict: vals.cfo_verdict ?? null,
+      };
     }
   } catch {
-    // State not yet available (graph not started or no checkpointer snapshot)
+    // State not yet available
   }
 
-  return c.json({ job, plan, steps_progress, final_output, hub_bolt11 });
+  return c.json({ job, plan, steps_progress, final_output, hub_bolt11, debug });
 });
 
 // ─── POST /jobs/:job_id/clarify ───────────────────────────────────────────────
