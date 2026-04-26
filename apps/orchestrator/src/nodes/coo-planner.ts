@@ -3,8 +3,10 @@ import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 import * as z from "zod";
 import { chatCompletion } from "@agentmkt/llm";
+import { db, schema } from "@agentmkt/db";
 import { CapabilityTagSchema } from "@agentmkt/contracts";
 import type { Plan, Step, CapabilityTag } from "@agentmkt/contracts";
+import { eq } from "drizzle-orm";
 import { marketplace } from "../clients/marketplace.js";
 import type { OrchestratorStateType } from "../state.js";
 import { planStore, jobStore } from "../store.js";
@@ -18,6 +20,7 @@ const systemPrompt = readFileSync(
 );
 
 const MAX_ITERATIONS = 3;
+const EXTERNAL_OWNER_USER_ID = "user_external_402index";
 
 const PlannerOutputStepSchema = z.object({
   dag_node: z.string(),
@@ -43,6 +46,85 @@ function buildPlanId(): string {
 
 function buildStepId(): string {
   return "step_" + Math.random().toString(36).slice(2, 10);
+}
+
+async function persistPlanSnapshot(
+  plan: Plan,
+  candidates: import("@agentmkt/contracts").WorkerCandidate[],
+  existingPlanId?: string
+): Promise<void> {
+  const workerIds = new Set(
+    plan.steps.flatMap((step) => [step.primary_worker_id, ...step.fallback_ids]).filter(Boolean)
+  );
+  const workersToPersist = candidates.filter((candidate) => workerIds.has(candidate.worker_id));
+
+  await db.insert(schema.users).values({ id: EXTERNAL_OWNER_USER_ID }).onConflictDoNothing();
+
+  if (workersToPersist.length > 0) {
+    await db
+      .insert(schema.workers)
+      .values(
+        workersToPersist.map((candidate) => ({
+          id: candidate.worker_id,
+          type: candidate.type,
+          endpoint_url: candidate.type === "agent" ? candidate.endpoint_url ?? null : null,
+          telegram_chat_id: null,
+          owner_user_id: EXTERNAL_OWNER_USER_ID,
+          display_name: candidate.display_name,
+          capability_tags: candidate.capability_tags,
+          base_price_sats: candidate.base_price_sats,
+          stake_sats: 0,
+          source: candidate.source,
+          status: "active" as const,
+        }))
+      )
+      .onConflictDoNothing();
+  }
+
+  if (existingPlanId) {
+    await db
+      .update(schema.plans)
+      .set({ status: "superseded" })
+      .where(eq(schema.plans.id, existingPlanId));
+  }
+
+  await db
+    .insert(schema.plans)
+    .values({
+      id: plan.id,
+      job_id: plan.job_id,
+      version: plan.version,
+      total_estimate_sats: plan.total_estimate_sats,
+      assumptions: plan.assumptions,
+      status: plan.status,
+      created_at: new Date(plan.created_at),
+    })
+    .onConflictDoNothing();
+
+  if (plan.steps.length > 0) {
+    await db
+      .insert(schema.steps)
+      .values(
+        plan.steps.map((step) => ({
+          id: step.id,
+          plan_id: plan.id,
+          dag_node: step.dag_node,
+          capability_tag: step.capability_tag,
+          primary_worker_id: step.primary_worker_id,
+          fallback_ids: step.fallback_ids,
+          estimate_sats: step.estimate_sats,
+          ceiling_sats: step.ceiling_sats,
+          depends_on: step.depends_on,
+          human_required: step.human_required,
+          optional: step.optional,
+          status: step.status,
+          retries_left: step.retries_left,
+          result: step.result ?? null,
+          error: step.error ?? null,
+        }))
+      )
+      .onConflictDoNothing();
+  }
 }
 
 export async function cooPlannnerNode( // exported name kept for graph.ts import compatibility
@@ -200,6 +282,15 @@ Produce the execution plan as JSON.`;
     planStore.set(existingPlan.id, { ...existingPlan, status: "superseded" });
   }
   planStore.set(plan.id, plan);
+
+  try {
+    await persistPlanSnapshot(plan, candidates, existingPlan?.id);
+  } catch (err) {
+    log.error({ err, plan_id: plan.id }, "Failed to persist plan snapshot");
+    const updated = { ...job, status: "failed" as const, updated_at: new Date().toISOString() };
+    jobStore.set(job.id, updated);
+    return { job: updated, error: "COO produced a plan, but it could not be persisted." };
+  }
 
   log.info({ plan_id: plan.id, steps: steps.length }, "Plan produced");
 

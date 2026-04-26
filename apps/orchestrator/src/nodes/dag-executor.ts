@@ -29,6 +29,7 @@ async function executeStep(
   log.info({ step_id: step.id, dag_node: step.dag_node }, "Executing step");
 
   let holdInvoiceId = "";
+  let lastFailureReason = "";
   const workersToTry = [step.primary_worker_id, ...step.fallback_ids];
 
   for (let attempt = 0; attempt <= step.retries_left; attempt++) {
@@ -106,6 +107,7 @@ async function executeStep(
         }
 
         // FAIL_RETRYABLE — cancel this hold and retry
+        lastFailureReason = verifyResp.verdict.reason;
         await hub.cancel({ hold_invoice_id: holdInvoiceId, reason: verifyResp.verdict.reason });
       } else {
         // Hub mocked: auto-settle and pass
@@ -113,12 +115,13 @@ async function executeStep(
         log.info({ step_id: step.id }, "Step succeeded (hub mocked, verify skipped)");
         return { ...current, status: "succeeded", result, retries_left: step.retries_left - attempt };
       }
-      log.warn({ step_id: step.id, attempt }, "Step retryable fail, retrying");
+      log.warn({ step_id: step.id, attempt, reason: lastFailureReason }, "Step retryable fail, retrying");
     } catch (err) {
+      lastFailureReason = err instanceof Error ? err.message : String(err);
       log.error({ step_id: step.id, attempt, err }, "Step execution error");
       if (holdInvoiceId) {
         try {
-          await hub.cancel({ hold_invoice_id: holdInvoiceId, reason: String(err) });
+          await hub.cancel({ hold_invoice_id: holdInvoiceId, reason: lastFailureReason });
         } catch {}
       }
     }
@@ -126,9 +129,17 @@ async function executeStep(
 
   // Exhausted retries
   if (step.optional) {
-    return { ...current, status: "skipped", error: "All retries exhausted" };
+    return {
+      ...current,
+      status: "skipped",
+      error: lastFailureReason ? `All retries exhausted: ${lastFailureReason}` : "All retries exhausted",
+    };
   }
-  return { ...current, status: "failed", error: "All retries exhausted" };
+  return {
+    ...current,
+    status: "failed",
+    error: lastFailureReason ? `All retries exhausted: ${lastFailureReason}` : "All retries exhausted",
+  };
 }
 
 export async function dagExecutorNode(
@@ -162,7 +173,11 @@ export async function dagExecutorNode(
 
     const anyFailed = steps.some((s) => s.status === "failed");
     if (anyFailed) {
-      log.error("One or more required steps failed");
+      const firstFailedStep = steps.find((s) => s.status === "failed");
+      const failureMessage = firstFailedStep?.error
+        ? `Step ${firstFailedStep.id} failed: ${firstFailedStep.error}`
+        : "One or more required steps failed.";
+      log.error({ failureMessage, failed_step_id: firstFailedStep?.id }, "One or more required steps failed");
       const failed = { ...job, status: "failed" as const, updated_at: new Date().toISOString() };
       jobStore.set(job.id, failed);
       if (plan) {
@@ -171,7 +186,7 @@ export async function dagExecutorNode(
           steps,
         });
       }
-      return { job: failed, steps, error: "One or more required steps failed." };
+      return { job: failed, steps, error: failureMessage };
     }
   }
 
