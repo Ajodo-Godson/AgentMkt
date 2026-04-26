@@ -133,6 +133,10 @@ export function JobConsole({ initialJobId }: { initialJobId?: string }) {
     }
   }, []);
 
+  const parsedTopupAmount = Number.parseInt(topupAmountInput, 10);
+  const topupAmountSats = Number.isFinite(parsedTopupAmount) ? parsedTopupAmount : NaN;
+  const topupAmountValid = Number.isInteger(topupAmountSats) && topupAmountSats > 0;
+
   const launchJob = useCallback(async () => {
     setIsLaunching(true);
     setError(null);
@@ -208,10 +212,6 @@ export function JobConsole({ initialJobId }: { initialJobId?: string }) {
     },
     [jobId, loadJob]
   );
-
-  const parsedTopupAmount = Number.parseInt(topupAmountInput, 10);
-  const topupAmountSats = Number.isFinite(parsedTopupAmount) ? parsedTopupAmount : NaN;
-  const topupAmountValid = Number.isInteger(topupAmountSats) && topupAmountSats > 0;
   const suggestedTopupSats = useMemo(() => {
     const estimate = snapshot?.plan?.total_estimate_sats;
     if (typeof estimate !== "number" || estimate <= 0) return null;
