@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, Bot, CheckCircle2, Clock3, Copy, PlusCircle, Search, ShieldCheck, Star, Users, Zap } from "lucide-react";
+import { ArrowLeft, Copy, Search } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { discoverWorkers } from "@/lib/marketplace";
@@ -86,54 +86,49 @@ export function WorkerMarketplace() {
   };
 
   return (
-    <main className="min-h-screen bg-background px-4 py-6 text-foreground sm:px-6 lg:px-10">
-      <div className="mx-auto max-w-7xl">
-        <Link className="mb-7 inline-flex items-center gap-2 text-sm text-muted-foreground transition hover:text-foreground" href="/">
+    <main className="min-h-screen bg-background text-foreground">
+      <div className="mx-auto max-w-7xl px-8 py-12 lg:px-16 lg:py-20">
+        <Link className="mb-10 inline-flex items-center gap-2 text-sm text-muted-foreground transition hover:text-foreground" href="/dashboard">
           <ArrowLeft className="h-4 w-4" />
-          Routing desk
+          Dashboard
         </Link>
 
-        <header className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-          <div>
-            <div className="mb-2 flex items-center gap-2">
-              <span className={`inline-flex h-2 w-2 rounded-full ${error ? "bg-danger" : "bg-success"}`} />
-              <span className="section-label">Marketplace discovery</span>
+        <header className="mb-16 flex flex-col gap-8 lg:flex-row lg:items-end lg:justify-between">
+          <div className="max-w-3xl">
+            <div className="mb-6 flex items-center gap-3">
+              <span className="section-num">02</span>
+              <span className="section-label">Marketplace</span>
             </div>
-            <h1 className="text-3xl font-semibold tracking-[-0.01em]">Worker marketplace</h1>
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-              Live worker candidates grouped by capability, price, and reputation.
+            <h1 className="display-serif text-5xl text-foreground sm:text-6xl lg:text-7xl">
+              Workers, <em className="text-muted-foreground">priced by quality.</em>
+            </h1>
+            <p className="mt-6 max-w-xl text-base leading-7 text-muted-foreground">
+              {workers.length} {workers.length === 1 ? "worker" : "workers"} listed{medianPrice !== null ? `, median price ${medianPrice} sats` : ""}{agentCount ? `. ${agentCount} agents` : ""}{humanCount ? `, ${humanCount} human` : ""}.
             </p>
           </div>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap items-center gap-6">
             <button
-              className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-border-subtle bg-card px-4 text-sm font-medium text-foreground shadow-sm transition hover:bg-muted focus:outline-none focus:ring-2 focus:ring-primary/20"
+              className="text-sm text-muted-foreground hover:text-foreground"
               onClick={loadWorkers}
               type="button"
             >
               Refresh
             </button>
             <Link
-              className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-primary px-4 text-sm font-semibold text-primary-foreground transition hover:brightness-110 focus:outline-none focus:ring-2 focus:ring-primary/50"
+              className="text-sm font-medium text-foreground hover:text-primary"
               href="/workers/new"
             >
-              <PlusCircle className="h-4 w-4" />
-              List worker
+              List worker <span className="text-primary">→</span>
             </Link>
           </div>
         </header>
 
-        <section className="mb-5 grid gap-3 md:grid-cols-3">
-          <Metric icon={ShieldCheck} label="Returned" value={workers.length.toString()} detail={`${agentCount} agents, ${humanCount} human`} />
-          <Metric icon={Zap} label="Median price" value={medianPrice === null ? "Unavailable" : `${medianPrice} sats`} detail="Base worker price" />
-          <Metric icon={CheckCircle2} label="Service" value={error ? "Unavailable" : "Live"} detail={error ?? "Marketplace /discover"} />
-        </section>
-
-        <section className="panel-strong overflow-hidden">
-          <div className="grid gap-3 border-b border-border-subtle p-4 lg:grid-cols-[minmax(220px,1fr)_180px_180px_160px]">
+        <section className="border-t border-border">
+          <div className="grid gap-4 border-b border-border-subtle py-4 lg:grid-cols-[minmax(220px,1fr)_180px_180px_160px]">
             <label className="relative block">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Search className="pointer-events-none absolute left-0 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <input
-                className="h-10 w-full rounded-md border border-border-subtle bg-card pl-9 pr-3 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:border-primary/60 focus:ring-2 focus:ring-primary/20"
+                className="h-9 w-full border-0 bg-transparent pl-6 pr-3 text-sm text-foreground outline-none placeholder:text-muted-foreground"
                 onChange={(event) => setQuery(event.target.value)}
                 placeholder="Search workers"
                 value={query}
@@ -160,7 +155,7 @@ export function WorkerMarketplace() {
             </Select>
           </div>
 
-          <div className="hidden grid-cols-[minmax(260px,1.45fr)_minmax(220px,1fr)_110px_120px_124px] gap-4 border-b border-border-subtle bg-card px-4 py-3 text-xs font-medium text-muted-foreground lg:grid">
+          <div className="hidden grid-cols-[minmax(260px,1.45fr)_minmax(220px,1fr)_110px_120px_124px] gap-4 border-b border-border-subtle py-3 text-xs uppercase tracking-wide text-muted-foreground lg:grid">
             <span>Worker</span>
             <span>Capability</span>
             <span>Price</span>
@@ -170,16 +165,16 @@ export function WorkerMarketplace() {
 
           <div className={isLoading ? "scan-line" : ""}>
             {error ? (
-              <div className="p-8">
-                <p className="text-sm font-medium text-danger">Marketplace unavailable</p>
-                <p className="mt-1 text-sm text-muted-foreground">{error}</p>
+              <div className="py-10">
+                <p className="display-serif text-3xl text-danger"><em>Marketplace unavailable.</em></p>
+                <p className="mt-3 text-sm text-muted-foreground">{error}</p>
               </div>
             ) : filteredWorkers.length > 0 ? (
               filteredWorkers.map((worker) => (
                 <WorkerRow copied={copiedId === worker.worker_id} key={worker.worker_id} onCopy={copyWorkerId} worker={worker} />
               ))
             ) : (
-              <div className="p-8 text-sm text-muted-foreground">
+              <div className="py-10 text-sm text-muted-foreground">
                 {isLoading ? "Loading marketplace workers." : "No workers match the current filters."}
               </div>
             )}
@@ -187,29 +182,6 @@ export function WorkerMarketplace() {
         </section>
       </div>
     </main>
-  );
-}
-
-function Metric({
-  detail,
-  icon: Icon,
-  label,
-  value
-}: {
-  detail: string;
-  icon: typeof ShieldCheck;
-  label: string;
-  value: string;
-}) {
-  return (
-    <div className="panel p-4">
-      <div className="mb-3 flex items-center gap-2 text-muted-foreground">
-        <Icon className="h-4 w-4 text-primary" />
-        <span className="section-label">{label}</span>
-      </div>
-      <p className="text-2xl font-semibold">{value}</p>
-      <p className="mt-1 truncate text-xs text-muted-foreground">{detail}</p>
-    </div>
   );
 }
 
@@ -228,7 +200,7 @@ function Select({
     <label className="block">
       <span className="sr-only">{label}</span>
       <select
-        className="h-10 w-full rounded-md border border-border-subtle bg-card px-3 text-sm text-foreground outline-none transition focus:border-primary/60 focus:ring-2 focus:ring-primary/20"
+        className="h-9 w-full border-0 border-b border-border bg-transparent px-0 text-sm text-foreground outline-none focus:border-primary"
         onChange={(event) => onChange(event.target.value)}
         value={value}
       >
@@ -247,59 +219,38 @@ function WorkerRow({
   onCopy: (workerId: string) => void;
   worker: WorkerCandidate;
 }) {
-  const WorkerIcon = worker.type === "agent" ? Bot : Users;
-
   return (
-    <article className="grid gap-4 border-b border-border-subtle px-4 py-4 last:border-b-0 lg:grid-cols-[minmax(260px,1.45fr)_minmax(220px,1fr)_110px_120px_124px] lg:items-center">
+    <article className="grid gap-4 border-b border-border-subtle py-5 last:border-b-0 lg:grid-cols-[minmax(260px,1.45fr)_minmax(220px,1fr)_110px_120px_124px] lg:items-center">
       <div className="min-w-0">
-        <div className="mb-2 flex flex-wrap items-center gap-2">
-          <span className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border-subtle bg-primary/5">
-            <WorkerIcon className="h-4 w-4 text-primary" />
-          </span>
-          <h2 className="truncate text-sm font-semibold">{worker.display_name}</h2>
-          <span className="rounded-md border border-border-subtle bg-muted px-2 py-0.5 text-xs text-muted-foreground">
-            {worker.type}
-          </span>
-          <span className="rounded-md border border-border-subtle bg-muted px-2 py-0.5 text-xs text-muted-foreground">
-            {worker.source}
-          </span>
+        <div className="flex flex-wrap items-baseline gap-2">
+          <h2 className="display-serif truncate text-2xl text-foreground">{worker.display_name}</h2>
+          <span className="text-xs uppercase tracking-wide text-muted-foreground">{worker.type}</span>
         </div>
-        <p className="mono mt-2 truncate text-xs text-muted-foreground">{worker.worker_id}</p>
-        {worker.endpoint_url ? <p className="mt-1 truncate text-xs text-muted-foreground">{worker.endpoint_url}</p> : null}
+        <p className="mono mt-1 truncate text-xs text-muted-foreground">{worker.worker_id}</p>
       </div>
 
-      <div className="flex flex-wrap gap-2">
-        {worker.capability_tags.map((item) => (
-          <span className="rounded-md border border-border-subtle bg-card px-2 py-1 text-xs text-muted-foreground" key={item}>
-            {getCapabilityLabel(item)}
+      <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
+        {worker.capability_tags.map((item, index) => (
+          <span key={item}>
+            {getCapabilityLabel(item)}{index < worker.capability_tags.length - 1 ? " ·" : ""}
           </span>
         ))}
       </div>
 
-      <div>
-        <p className="mono text-sm font-semibold">{worker.base_price_sats}</p>
-        <p className="text-xs text-muted-foreground">sats base</p>
+      <p className="mono text-sm">{worker.base_price_sats} sats</p>
+
+      <div className="text-sm">
+        <span className="mono">{worker.ewma.toFixed(1)}</span>
+        <span className="ml-3 text-xs text-muted-foreground">{worker.total_jobs} jobs</span>
       </div>
 
-      <div className="grid gap-1 text-sm">
-        <span className="inline-flex items-center gap-1">
-          <Star className="h-3.5 w-3.5 text-primary" />
-          {worker.ewma.toFixed(1)}
-        </span>
-        <span className="text-xs text-muted-foreground">{worker.total_jobs} jobs</span>
-        <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
-          <Clock3 className="h-3.5 w-3.5" />
-          {worker.type === "human" ? "manual" : "endpoint"}
-        </span>
-      </div>
-
-      <div className="flex items-center gap-2 lg:justify-end">
+      <div className="flex items-center lg:justify-end">
         <button
-          className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-border-subtle bg-card px-3 text-xs font-medium text-foreground shadow-sm transition hover:bg-muted focus:outline-none focus:ring-2 focus:ring-primary/20"
+          className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
           onClick={() => onCopy(worker.worker_id)}
           type="button"
         >
-          <Copy className="h-3.5 w-3.5" />
+          <Copy className="h-3 w-3" />
           {copied ? "Copied" : "Copy ID"}
         </button>
       </div>

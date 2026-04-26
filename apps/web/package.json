@@ -11,6 +11,7 @@
     "@agentmkt/contracts": "workspace:*",
     "@hono/node-server": "^1.13.8",
     "@tailwindcss/postcss": "^4.1.0",
+    "geist": "^1.7.0",
     "hono": "^4.6.0",
     "lucide-react": "^0.468.0",
     "next": "^16.2.4",

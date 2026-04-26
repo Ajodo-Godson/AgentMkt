@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, Bot, CheckCircle2, LinkIcon, PlusCircle, RadioTower, Send, ShieldCheck, Users } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { FormEvent, useMemo, useState } from "react";
 import { listWorker } from "@/lib/marketplace";
@@ -138,59 +138,50 @@ export function WorkerListingForm() {
   };
 
   return (
-    <main className="min-h-screen bg-background px-4 py-6 text-foreground sm:px-6 lg:px-10">
-      <div className="mx-auto max-w-6xl">
-        <Link className="mb-7 inline-flex items-center gap-2 text-sm text-muted-foreground transition hover:text-foreground" href="/">
+    <main className="min-h-screen bg-background text-foreground">
+      <div className="mx-auto max-w-6xl px-8 py-12 lg:px-16 lg:py-20">
+        <Link className="mb-10 inline-flex items-center gap-2 text-sm text-muted-foreground transition hover:text-foreground" href="/dashboard">
           <ArrowLeft className="h-4 w-4" />
-          Routing desk
+          Dashboard
         </Link>
 
-        <header className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-          <div>
-            <div className="mb-2 flex items-center gap-2">
-              <span className="inline-flex h-2 w-2 rounded-full bg-primary" />
-              <span className="section-label">Marketplace registration</span>
+        <header className="mb-16 flex flex-col gap-8 lg:flex-row lg:items-end lg:justify-between">
+          <div className="max-w-3xl">
+            <div className="mb-6 flex items-center gap-3">
+              <span className="section-num">03</span>
+              <span className="section-label">List worker</span>
             </div>
-            <h1 className="text-3xl font-semibold tracking-[-0.01em]">List a worker</h1>
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-              Register an agent endpoint or human Telegram worker with marketplace validation.
+            <h1 className="display-serif text-5xl text-foreground sm:text-6xl lg:text-7xl">
+              Register an <em className="text-muted-foreground">agent or human.</em>
+            </h1>
+            <p className="mt-6 max-w-xl text-base leading-7 text-muted-foreground">
+              Workers are paid only when their step settles. Pricing, capabilities, and contact channel are visible to the orchestrator immediately.
             </p>
           </div>
           <Link
-            className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-border-subtle bg-card px-4 text-sm font-medium text-foreground shadow-sm transition hover:bg-muted focus:outline-none focus:ring-2 focus:ring-primary/20"
+            className="text-sm text-muted-foreground hover:text-foreground"
             href="/workers"
           >
-            <Users className="h-4 w-4" />
-            View marketplace
+            View marketplace <span className="text-primary">→</span>
           </Link>
         </header>
 
         {published ? (
-          <section className="mb-5 flex flex-col gap-3 rounded-md border border-success/45 bg-success/10 p-4 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-start gap-3">
-              <CheckCircle2 className="mt-0.5 h-5 w-5 text-success" />
-              <div>
-                <p className="text-sm font-semibold">{published.display_name} is active</p>
-                <p className="mono mt-1 text-xs text-muted-foreground">{published.id}</p>
-              </div>
-            </div>
-            <Link className="text-sm font-medium text-success transition hover:text-foreground" href="/workers">
-              Open marketplace
-            </Link>
+          <section className="mb-10 border-y border-border-subtle py-4">
+            <p className="text-sm">
+              <span className="text-success">●</span>{" "}
+              <span className="font-medium">{published.display_name}</span> is active.{" "}
+              <span className="mono text-xs text-muted-foreground">{published.id}</span>{" "}
+              <Link className="editorial-link ml-2 text-xs" href="/workers">
+                View →
+              </Link>
+            </p>
           </section>
         ) : null}
 
-        <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
-          <form className="panel-strong p-5" onSubmit={submitListing}>
-            <div className="mb-5 flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-md border border-primary/20 bg-primary/5">
-                <PlusCircle className="h-5 w-5 text-primary" />
-              </div>
-              <div>
-                <h2 className="text-lg font-semibold">Worker details</h2>
-                <p className="text-sm text-muted-foreground">Validation runs through the marketplace service.</p>
-              </div>
-            </div>
+        <div className="grid gap-12 lg:grid-cols-[minmax(0,1fr)_300px]">
+          <form className="border-t border-border pt-8" onSubmit={submitListing}>
+            <p className="section-label mb-5">Worker details</p>
 
             <div className="grid gap-4 md:grid-cols-2">
               <Field label="Worker name">
@@ -282,51 +273,42 @@ export function WorkerListingForm() {
               </Field>
             </div>
 
-            {error ? <p className="mt-4 rounded-md border border-danger/45 bg-danger/10 px-3 py-2 text-sm text-danger">{error}</p> : null}
+            {error ? <p className="mt-6 text-sm text-danger">{error}</p> : null}
 
-            <div className="mt-5 flex flex-wrap items-center justify-end gap-3 border-t border-border-subtle pt-5">
+            <div className="mt-10 flex flex-wrap items-center justify-end gap-6 border-t border-border-subtle pt-6">
               <Link className="text-sm text-muted-foreground transition hover:text-foreground" href="/workers">
                 Cancel
               </Link>
               <button
-                className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-primary px-4 text-sm font-semibold text-primary-foreground transition hover:brightness-110 focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:opacity-60"
+                className="text-sm font-medium text-foreground hover:text-primary disabled:opacity-50"
                 disabled={isSubmitting}
                 type="submit"
               >
-                <Send className="h-4 w-4" />
-                {isSubmitting ? "Publishing" : "Publish listing"}
+                {isSubmitting ? "Publishing…" : "Publish listing"} <span className="text-primary">→</span>
               </button>
             </div>
           </form>
 
-          <aside className="panel p-5">
-            <div className="mb-5 flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-md border border-primary/20 bg-primary/5">
-                <RadioTower className="h-5 w-5 text-primary" />
+          <aside className="border-t border-border pt-8">
+            <p className="section-label mb-4">Preview</p>
+
+            <p className="display-serif mb-1 text-2xl text-foreground">{preview.displayName}</p>
+            <p className="mb-6 text-xs uppercase tracking-wide text-muted-foreground">{preview.type}</p>
+
+            <dl className="space-y-4 text-sm">
+              <div>
+                <dt className="text-xs text-muted-foreground">Capabilities</dt>
+                <dd className="mt-1">{preview.capabilities.map(getCapabilityLabel).join(", ") || "None"}</dd>
               </div>
               <div>
-                <h2 className="text-lg font-semibold">Listing preview</h2>
-                <p className="text-sm text-muted-foreground">Marketplace payload</p>
+                <dt className="text-xs text-muted-foreground">Base price</dt>
+                <dd className="mono mt-1">{preview.basePrice || 0} sats</dd>
               </div>
-            </div>
-
-            <div className="space-y-5">
               <div>
-                <div className="mb-2 flex items-center gap-2">
-                  {preview.type === "agent" ? <Bot className="h-4 w-4 text-primary" /> : <Users className="h-4 w-4 text-primary" />}
-                  <p className="text-sm font-semibold">{preview.displayName}</p>
-                </div>
-                <p className="mono text-xs leading-5 text-muted-foreground">
-                  type={preview.type} price={preview.basePrice} sats
-                </p>
+                <dt className="text-xs text-muted-foreground">Contact</dt>
+                <dd className="mt-1 truncate">{preview.contact || "None"}</dd>
               </div>
-
-              <div className="grid gap-3 text-sm">
-                <PreviewLine icon={ShieldCheck} label="Capabilities" value={preview.capabilities.map(getCapabilityLabel).join(", ")} />
-                <PreviewLine icon={PlusCircle} label="Base price" value={`${preview.basePrice || 0} sats`} />
-                <PreviewLine icon={LinkIcon} label="Contact" value={preview.contact} />
-              </div>
-            </div>
+            </dl>
           </aside>
         </div>
       </div>
@@ -348,26 +330,6 @@ function Field({
       <span className="mb-2 block text-xs font-medium text-muted-foreground">{label}</span>
       {children}
     </label>
-  );
-}
-
-function PreviewLine({
-  icon: Icon,
-  label,
-  value
-}: {
-  icon: typeof ShieldCheck;
-  label: string;
-  value: string;
-}) {
-  return (
-    <div className="flex min-w-0 items-start gap-3 rounded-md border border-border-subtle bg-card p-3">
-      <Icon className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
-      <div className="min-w-0">
-        <p className="text-xs text-muted-foreground">{label}</p>
-        <p className="truncate text-sm text-foreground">{value || "None"}</p>
-      </div>
-    </div>
   );
 }
 

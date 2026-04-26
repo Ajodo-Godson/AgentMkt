@@ -1,6 +1,6 @@
 "use client";
 
-import { CheckCircle2, CircleDashed, Clock, GitBranch, ShieldCheck, Timer } from "lucide-react";
+import { CheckCircle2, CircleDashed, Clock } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { discoverWorkers } from "@/lib/marketplace";
 import { getCapabilityLabel } from "@/lib/workers";
@@ -54,65 +54,47 @@ export function PlanTrace({ snapshot }: { snapshot: JobSnapshot | null }) {
   }, [activeCapability]);
 
   return (
-    <section className="panel-strong route-panel overflow-hidden">
-      <div className="border-b border-border-subtle p-4">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <p className="section-label">Route</p>
-            <h2 className="text-lg font-semibold">Execution plan</h2>
-            <p className="mt-1 text-xs text-muted-foreground">Orchestrator plan, selected workers, and step status.</p>
-          </div>
-          {snapshot ? <StatusBadge status={snapshot.job.status} /> : null}
+    <section>
+      {steps.length === 0 ? (
+        <EmptyRoute />
+      ) : (
+        <div className="route-timeline">
+          {steps.map((step, index) => (
+            <StepRow active={step.id === activeStep?.id} index={index} key={step.id} step={step} />
+          ))}
         </div>
-      </div>
+      )}
 
-      <div className="grid gap-4 p-4">
-        {steps.length === 0 ? (
-          <EmptyRoute />
-        ) : (
-          <div className="route-timeline">
-            {steps.map((step, index) => (
-              <StepRow active={step.id === activeStep?.id} index={index} key={step.id} step={step} />
-            ))}
-          </div>
-        )}
-
-        <div className="rounded-md border border-border-subtle bg-card">
-          <div className="flex items-center justify-between border-b border-border-subtle px-3 py-2">
-            <div>
-              <p className="text-sm font-medium">Worker alternatives</p>
-              <p className="text-xs text-muted-foreground">
-                Live marketplace discovery for {activeStep ? getCapabilityLabel(activeStep.capability_tag) : "the active step"}.
-              </p>
-            </div>
-          </div>
-          <div className={snapshot?.job.status === "planning" || isLoadingCandidates ? "scan-line" : ""}>
-            {candidateError ? (
-              <p className="p-4 text-sm text-danger">{candidateError}</p>
-            ) : candidates.length > 0 ? (
-              <div className="worker-table">
-                <div className="worker-row worker-row-header">
-                  <span>Worker</span>
-                  <span>EWMA</span>
-                  <span>Price</span>
-                  <span>Jobs</span>
-                  <span>Type</span>
-                  <span>Source</span>
-                </div>
-                {candidates.map((candidate) => (
-                  <CandidateRow
-                    candidate={candidate}
-                    key={candidate.worker_id}
-                    selected={activeStep?.primary_worker_id === candidate.worker_id}
-                  />
-                ))}
+      <div className="mt-10 border-t border-border-subtle pt-6">
+        <p className="section-label mb-4">
+          Alternatives{activeStep ? ` — ${getCapabilityLabel(activeStep.capability_tag)}` : ""}
+        </p>
+        <div className={snapshot?.job.status === "planning" || isLoadingCandidates ? "scan-line" : ""}>
+          {candidateError ? (
+            <p className="text-sm text-danger">{candidateError}</p>
+          ) : candidates.length > 0 ? (
+            <div className="worker-table">
+              <div className="worker-row worker-row-header">
+                <span>Worker</span>
+                <span>EWMA</span>
+                <span>Price</span>
+                <span>Jobs</span>
+                <span>Type</span>
+                <span>Source</span>
               </div>
-            ) : (
-              <p className="p-4 text-sm text-muted-foreground">
-                {activeStep ? "No candidates returned for this capability." : "Worker alternatives appear after a route is planned."}
-              </p>
-            )}
-          </div>
+              {candidates.map((candidate) => (
+                <CandidateRow
+                  candidate={candidate}
+                  key={candidate.worker_id}
+                  selected={activeStep?.primary_worker_id === candidate.worker_id}
+                />
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              {activeStep ? "No candidates returned for this capability." : "Worker alternatives appear after a route is planned."}
+            </p>
+          )}
         </div>
       </div>
     </section>
@@ -121,10 +103,13 @@ export function PlanTrace({ snapshot }: { snapshot: JobSnapshot | null }) {
 
 function EmptyRoute() {
   return (
-    <div className="rounded-md border border-dashed border-border p-8 text-center">
-      <GitBranch className="mx-auto mb-3 h-6 w-6 text-muted-foreground" />
-      <p className="text-sm font-medium">No route yet</p>
-      <p className="mt-1 text-sm text-muted-foreground">Start a route to see planned steps.</p>
+    <div className="py-2">
+      <p className="display-serif text-3xl text-muted-foreground">
+        <em>No route yet.</em>
+      </p>
+      <p className="mt-3 text-sm text-muted-foreground">
+        Submit a work order to draft a route across agents and humans.
+      </p>
     </div>
   );
 }
@@ -136,33 +121,25 @@ function StepRow({ step, index, active }: { step: Step; index: number; active: b
   return (
     <div className={`route-step ${active ? "is-active" : ""}`}>
       <div className="route-step-marker">
-        <Icon className="h-4 w-4" />
+        <Icon className="h-3.5 w-3.5" />
       </div>
-      <div className="min-w-0 flex-1 rounded-md border border-border-subtle bg-card p-3 shadow-sm">
+      <div className="min-w-0 flex-1 py-1">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="min-w-0">
-            <p className="text-sm font-medium">
-              {index + 1}. {getCapabilityLabel(step.capability_tag)}
-            </p>
-            <p className="mono truncate text-xs text-muted-foreground">{step.primary_worker_id}</p>
-          </div>
+          <p className="text-sm font-medium">
+            {index + 1}. {getCapabilityLabel(step.capability_tag)}
+          </p>
           <div className="flex items-center gap-2">
             <StatusBadge status={step.status} />
-            <span className="mono text-sm text-primary">{step.estimate_sats} sats</span>
+            <span className="mono text-xs text-muted-foreground">{step.estimate_sats} sats</span>
           </div>
         </div>
-        <div className="mt-3 flex flex-wrap gap-3 text-xs text-muted-foreground">
-          <span className="inline-flex items-center gap-1">
-            <Timer className="h-3.5 w-3.5" />
-            {step.human_required ? "Human step" : "Agent step"}
-          </span>
-          <span className="inline-flex items-center gap-1">
-            <ShieldCheck className="h-3.5 w-3.5" />
-            Hold ceiling {step.ceiling_sats} sats
-          </span>
-          {step.fallback_ids.length > 0 ? <span className="mono">fallbacks={step.fallback_ids.length}</span> : null}
+        <p className="mono truncate text-xs text-muted-foreground">{step.primary_worker_id}</p>
+        <div className="mt-1 flex flex-wrap gap-3 text-xs text-muted-foreground">
+          <span>{step.human_required ? "Human" : "Agent"}</span>
+          <span>Ceiling {step.ceiling_sats} sats</span>
+          {step.fallback_ids.length > 0 ? <span>{step.fallback_ids.length} fallback{step.fallback_ids.length > 1 ? "s" : ""}</span> : null}
         </div>
-        {step.error ? <p className="mt-3 text-xs text-danger">{step.error}</p> : null}
+        {step.error ? <p className="mt-1 text-xs text-danger">{step.error}</p> : null}
       </div>
     </div>
   );
