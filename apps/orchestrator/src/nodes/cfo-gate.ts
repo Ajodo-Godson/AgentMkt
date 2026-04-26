@@ -84,13 +84,8 @@ export async function cfoGateNode(
       return { job: cancelled, cfo_verdict: verdict };
     }
 
-    const failed = { ...job, status: "failed" as const, updated_at: new Date().toISOString() };
-    jobStore.set(job.id, failed);
-    return {
-      job: failed,
-      cfo_verdict: verdict,
-      error: "COO proposal exceeds wallet balance. Replan or add funds before retrying.",
-    };
+    // User confirmed: proceed to execution with an APPROVED verdict
+    return { cfo_verdict: { kind: "APPROVED" } };
   }
 
   return { cfo_verdict: verdict };

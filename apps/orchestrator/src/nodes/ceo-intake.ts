@@ -1,4 +1,3 @@
-import { interrupt } from "@langchain/langgraph";
 import { chatCompletion } from "@agentmkt/llm";
 import type { Job } from "@agentmkt/contracts";
 import { hub } from "../clients/hub.js";
@@ -75,30 +74,8 @@ export async function ceoIntakeNode(
 
   log.info({ extraction }, "Intent extracted");
 
-  // Ask for clarification if needed (LangGraph interrupt — pauses graph until resumed)
-  if (extraction.needs_clarification && extraction.clarification_question) {
-    const awaiting: Job = { ...job, status: "awaiting_user", updated_at: new Date().toISOString() };
-    jobStore.set(job.id, awaiting);
-
-    const answer: string = interrupt({
-      kind: "clarify",
-      question: extraction.clarification_question,
-    });
-
-    // Resume: re-run extraction with the user's answer appended
-    const updatedPrompt = `${job.prompt}\n\nUser clarification: ${answer}`;
-    job = {
-      ...job,
-      prompt: updatedPrompt,
-      updated_at: new Date().toISOString(),
-    };
-    jobStore.set(job.id, job);
-    try {
-      extraction = await extractIntent(updatedPrompt);
-    } catch {
-      extraction.needs_clarification = false;
-    }
-  }
+  // Clarification is suppressed for demo — CEO proceeds with available info.
+  // COO will note missing details as plan assumptions.
 
   const updated: Job = {
     ...job,

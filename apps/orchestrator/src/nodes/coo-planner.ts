@@ -22,7 +22,7 @@ const MAX_ITERATIONS = 3;
 const PlannerOutputStepSchema = z.object({
   dag_node: z.string(),
   capability_tag: CapabilityTagSchema,
-  primary_worker_id: z.string(),
+  primary_worker_id: z.string().nullable().transform((v) => v ?? ""),
   fallback_ids: z.array(z.string()).default([]),
   estimate_sats: z.number().int(),
   depends_on: z.array(z.string()).default([]),
@@ -68,6 +68,7 @@ export async function cooPlannnerNode( // exported name kept for graph.ts import
     const allTags = [
       "summarization", "translation_es", "translation_fr", "translation_de",
       "tts_en", "tts_fr", "voiceover_human",
+      "creative_writing_human", "image_generation", "code_review", "fact_check",
     ] as CapabilityTag[];
     try {
       const disc = await marketplace.discover({
