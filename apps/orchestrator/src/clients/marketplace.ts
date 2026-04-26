@@ -9,7 +9,7 @@ import type {
 import { mockMarketplace } from "./mock.js";
 
 const BASE = process.env.MARKETPLACE_BASE_URL ?? "http://localhost:4003";
-const USE_MOCKS = process.env.USE_MOCKS === "true";
+const useMocks = () => process.env.USE_MOCKS === "true";
 
 async function post<T>(path: string, body: unknown): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
@@ -32,7 +32,7 @@ export const marketplace = {
     include_external?: boolean;
     limit?: number;
   }) =>
-    USE_MOCKS
+    useMocks()
       ? mockMarketplace.discover(req)
       : post<{ candidates: WorkerCandidate[] }>("/discover", req),
 
@@ -45,7 +45,7 @@ export const marketplace = {
     score: number;
     reason?: string;
   }) =>
-    USE_MOCKS
+    useMocks()
       ? mockMarketplace.rate(req)
       : post<{ rating_id: string; new_ewma: number }>("/ratings", req),
 
@@ -54,7 +54,7 @@ export const marketplace = {
     spec: string;
     result: StepResult;
   }) =>
-    USE_MOCKS
+    useMocks()
       ? mockMarketplace.verify(req)
       : post<{ verdict: VerifierVerdict }>("/verify", req),
 };
