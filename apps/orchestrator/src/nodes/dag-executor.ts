@@ -68,13 +68,13 @@ async function executeStep(
         forwardResult = await hub.forward({
           hold_invoice_id: holdInvoiceId,
           supplier_endpoint: supplierEndpoint,
-          supplier_payload: { step_id: step.id, spec: step.dag_node },
+          supplier_payload: { step_id: step.id, spec: step.dag_node, _req_id: `${job_id}_${step.id}_${attempt}` },
         });
       } else {
         forwardResult = await hub.forward({
           hold_invoice_id: holdInvoiceId,
           supplier_endpoint: supplierEndpoint,
-          supplier_payload: { step_id: step.id, spec: step.dag_node },
+          supplier_payload: { step_id: step.id, spec: step.dag_node, _req_id: `${job_id}_${step.id}_${attempt}` },
         });
       }
 
