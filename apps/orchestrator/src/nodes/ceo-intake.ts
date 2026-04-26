@@ -1,5 +1,5 @@
 import { chatCompletion } from "@agentmkt/llm";
-import type { Job } from "@agentmkt/contracts";
+import type { Job, CapabilityTag } from "@agentmkt/contracts";
 import { hub } from "../clients/hub.js";
 import type { OrchestratorStateType } from "../state.js";
 import { jobStore } from "../store.js";
@@ -11,6 +11,26 @@ interface IntentExtraction {
   constraints: Record<string, unknown>;
   needs_clarification: boolean;
   clarification_question?: string;
+}
+
+const VALID_CAPABILITY_TAGS = new Set<CapabilityTag>([
+  "summarization",
+  "translation_es",
+  "translation_fr",
+  "translation_de",
+  "tts_en",
+  "tts_fr",
+  "image_generation",
+  "code_review",
+  "fact_check",
+  "voiceover_human",
+  "creative_writing_human",
+]);
+
+function normalizeCapabilityTags(tags: string[]): CapabilityTag[] {
+  return tags.filter(
+    (tag): tag is CapabilityTag => VALID_CAPABILITY_TAGS.has(tag as CapabilityTag)
+  );
 }
 
 async function extractIntent(prompt: string): Promise<IntentExtraction> {
@@ -76,6 +96,7 @@ export async function ceoIntakeNode(
 
   // Clarification is suppressed for demo — CEO proceeds with available info.
   // COO will note missing details as plan assumptions.
+  const requested_capability_tags = normalizeCapabilityTags(extraction.capability_tags);
 
   const updated: Job = {
     ...job,
@@ -87,5 +108,8 @@ export async function ceoIntakeNode(
   return {
     job: updated,
     wallet_balance_sats,
+    intake_intent: extraction.intent,
+    requested_capability_tags,
+    request_constraints: extraction.constraints ?? {},
   };
 }
