@@ -4,7 +4,6 @@ import { fileURLToPath } from "url";
 // Load root .env (monorepo): src/ → orchestrator/ → apps/ → root
 config({ path: resolve(dirname(fileURLToPath(import.meta.url)), "../../../.env") });
 import { Hono } from "hono";
-import { cors } from "hono/cors";
 import { serve } from "@hono/node-server";
 import { Command } from "@langchain/langgraph";
 import * as z from "zod";
@@ -17,15 +16,16 @@ import { logger } from "./logger.js";
 const app = new Hono();
 const PORT = Number(process.env.PORT_ORCHESTRATOR ?? 4001);
 
-// CORS — allow the deployed frontend and local dev.
-// Set CORS_ORIGIN=https://your-app.vercel.app in .env (comma-separated for multiple).
-const rawOrigins = process.env.CORS_ORIGIN ?? "http://localhost:3000";
-const allowedOrigins = rawOrigins.split(",").map((o) => o.trim());
-app.use("*", cors({
-  origin: allowedOrigins,
-  allowMethods: ["GET", "POST", "OPTIONS"],
-  allowHeaders: ["Content-Type"],
-}));
+// CORS — manual middleware; open to all origins (no credentials used).
+app.use("*", async (c, next) => {
+  c.header("Access-Control-Allow-Origin", "*");
+  c.header("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  c.header("Access-Control-Allow-Headers", "Content-Type");
+  if (c.req.method === "OPTIONS") {
+    return c.body(null, 204);
+  }
+  await next();
+});
 
 function buildJobId(): string {
   return "job_" + Math.random().toString(36).slice(2, 10);
