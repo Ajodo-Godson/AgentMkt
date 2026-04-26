@@ -1,8 +1,13 @@
 import { drizzle } from "drizzle-orm/postgres-js";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 import postgres from "postgres";
+import { config as loadEnv } from "dotenv";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const repoRoot = resolve(__dirname, "../../..");
+loadEnv({ path: resolve(repoRoot, ".env") });
 
 async function main() {
   const url = process.env.DATABASE_URL;
@@ -10,7 +15,6 @@ async function main() {
     throw new Error("DATABASE_URL is not set. Add it to .env at the repo root.");
   }
 
-  const __dirname = dirname(fileURLToPath(import.meta.url));
   const migrationsFolder = resolve(__dirname, "./migrations");
 
   const client = postgres(url, { max: 1 });

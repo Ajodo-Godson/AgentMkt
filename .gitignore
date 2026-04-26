@@ -1,23 +1,44 @@
+# Dependencies
 node_modules/
+.pnpm-store/
+
+# Build output
 dist/
 .next/
 out/
 build/
+*.tsbuildinfo
+.turbo/
+.cache/
 
+# Env / secrets
 .env
 .env.local
 .env.*.local
 
+# Logs
 *.log
-.DS_Store
-.turbo/
-.cache/
-coverage/
+logs/
+pino.log
 
-# Lexe sidecar binary (P2)
+# Lexe sidecar binary + runtime files (per workstream P2 spec)
 apps/hub/bin/lexe-sidecar
+apps/hub/bin/*.log
+apps/hub/bin/data/
 
-# Drizzle generated artifacts (keep migrations, drop meta if desired)
+# OS / editor noise
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+
+# Test / coverage
+coverage/
+.nyc_output/
+
+# Drizzle generated files we want to keep migrations but ignore meta cache
+packages/db/.drizzle-cache/
 packages/db/.drizzle/
 
 instructions.md

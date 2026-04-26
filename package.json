@@ -13,9 +13,17 @@
     "typecheck": "pnpm -r typecheck",
     "db:generate": "pnpm --filter @agentmkt/db generate",
     "db:migrate": "pnpm --filter @agentmkt/db migrate",
+    "db:push": "pnpm --filter @agentmkt/db push",
     "db:seed": "tsx scripts/seed.ts",
     "smoke": "tsx scripts/smoke.ts",
-    "dev:orchestrator": "pnpm --filter @agentmkt/orchestrator dev"
+    "dev:orchestrator": "pnpm --filter @agentmkt/orchestrator dev",
+    "dev:hub": "pnpm --filter @agentmkt/hub dev",
+    "build:hub": "pnpm --filter @agentmkt/hub build",
+    "smoke:1sat": "pnpm --filter @agentmkt/hub smoke:1sat",
+    "smoke:happy": "pnpm --filter @agentmkt/hub smoke:happy",
+    "seed:hub-topup": "pnpm --filter @agentmkt/hub seed:topup",
+    "test:hub-fee": "pnpm --filter @agentmkt/hub test:fee",
+    "fake-supplier": "pnpm --filter @agentmkt/hub fake-supplier"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",

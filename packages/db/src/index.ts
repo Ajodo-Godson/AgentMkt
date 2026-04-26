@@ -16,6 +16,12 @@ export function getDb(databaseUrl: string = requireUrl()) {
   return _db;
 }
 
+export const db = new Proxy({} as ReturnType<typeof getDb>, {
+  get(_target, prop) {
+    return Reflect.get(getDb(), prop);
+  },
+});
+
 export async function closeDb() {
   if (_client) {
     await _client.end();

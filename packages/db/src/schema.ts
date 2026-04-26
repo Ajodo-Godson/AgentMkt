@@ -1,5 +1,6 @@
 import {
   boolean,
+  index,
   integer,
   jsonb,
   pgTable,
@@ -191,45 +192,104 @@ export const reputation_snapshots = pgTable(
 // =========================================================================
 // ledger_entries
 // =========================================================================
-export const ledger_entries = pgTable("ledger_entries", {
-  id: text("id").primaryKey(),
-  job_id: text("job_id")
-    .notNull()
-    .references(() => jobs.id, { onDelete: "cascade" }),
-  step_id: text("step_id").references(() => steps.id, {
-    onDelete: "set null",
-  }),
-  type: text("type", {
-    enum: ["topup", "hold", "settle", "refund", "fee", "payout"],
-  }).notNull(),
-  amount_sats: integer("amount_sats").notNull(),
-  bolt11: text("bolt11"),
-  preimage: text("preimage"),
-  created_at: timestamp("created_at", { withTimezone: true })
-    .defaultNow()
-    .notNull(),
-});
+export const ledger_entries = pgTable(
+  "ledger_entries",
+  {
+    id: text("id").primaryKey(),
+    job_id: text("job_id")
+      .notNull()
+      .references(() => jobs.id, { onDelete: "cascade" }),
+    step_id: text("step_id").references(() => steps.id, {
+      onDelete: "set null",
+    }),
+    type: text("type", {
+      enum: ["topup", "hold", "settle", "refund", "fee", "payout"],
+    }).notNull(),
+    amount_sats: integer("amount_sats").notNull(),
+    bolt11: text("bolt11"),
+    preimage: text("preimage"),
+    hold_invoice_id: text("hold_invoice_id"),
+    meta: jsonb("meta"),
+    created_at: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (t) => [
+    index("ledger_entries_job_idx").on(t.job_id),
+    index("ledger_entries_hold_idx").on(t.hold_invoice_id),
+    index("ledger_entries_bolt11_idx").on(t.bolt11),
+    index("ledger_entries_type_idx").on(t.type),
+  ],
+);
 
 // =========================================================================
 // hold_invoices
 // =========================================================================
-export const hold_invoices = pgTable("hold_invoices", {
-  id: text("id").primaryKey(),
-  job_id: text("job_id")
-    .notNull()
-    .references(() => jobs.id, { onDelete: "cascade" }),
-  step_id: text("step_id")
-    .notNull()
-    .references(() => steps.id, { onDelete: "cascade" }),
-  amount_sats: integer("amount_sats").notNull(),
-  bolt11: text("bolt11").notNull(),
-  status: text("status", {
-    enum: ["pending", "held", "settled", "cancelled", "expired"],
-  })
-    .notNull()
-    .default("pending"),
-  created_at: timestamp("created_at", { withTimezone: true })
-    .defaultNow()
-    .notNull(),
-  expires_at: timestamp("expires_at", { withTimezone: true }).notNull(),
-});
+export const hold_invoices = pgTable(
+  "hold_invoices",
+  {
+    id: text("id").primaryKey(),
+    job_id: text("job_id")
+      .notNull()
+      .references(() => jobs.id, { onDelete: "cascade" }),
+    step_id: text("step_id")
+      .notNull()
+      .references(() => steps.id, { onDelete: "cascade" }),
+    amount_sats: integer("amount_sats").notNull(),
+    bolt11: text("bolt11").notNull().default(""),
+    status: text("status", {
+      enum: [
+        "pending",
+        "held",
+        "forwarding",
+        "settled",
+        "cancelled",
+        "expired",
+        "human_submitted",
+      ],
+    })
+      .notNull()
+      .default("held"),
+    human_payout_bolt11: text("human_payout_bolt11"),
+    human_submitted_result: jsonb("human_submitted_result"),
+    paid_to_supplier_sats: integer("paid_to_supplier_sats"),
+    fee_sats: integer("fee_sats"),
+    preimage: text("preimage"),
+    cancel_reason: text("cancel_reason"),
+    created_at: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    expires_at: timestamp("expires_at", { withTimezone: true }).notNull(),
+    updated_at: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (t) => [
+    index("hold_invoices_job_idx").on(t.job_id),
+    index("hold_invoices_status_idx").on(t.status),
+  ],
+);
+
+// P2 hub bookkeeping for topup status polling.
+export const topupInvoices = pgTable(
+  "topup_invoices",
+  {
+    bolt11: text("bolt11").primaryKey(),
+    job_id: text("job_id").notNull(),
+    amount_sats: integer("amount_sats").notNull(),
+    payment_index: text("payment_index").notNull(),
+    payment_hash: text("payment_hash").notNull(),
+    expires_at: timestamp("expires_at", { withTimezone: true }).notNull(),
+    created_at: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (t) => [
+    index("topup_invoices_job_idx").on(t.job_id),
+    index("topup_invoices_payment_index_idx").on(t.payment_index),
+  ],
+);
+
+// Backwards-compatible camelCase aliases for P2 hub code.
+export const ledgerEntries = ledger_entries;
+export const holdInvoices = hold_invoices;

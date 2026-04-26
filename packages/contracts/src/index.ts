@@ -82,6 +82,7 @@ export const StepResultSchema = z.discriminatedUnion("kind", [
 ]);
 
 export type StepResult = z.infer<typeof StepResultSchema>;
+export const stepResultSchema = StepResultSchema;
 
 export const StepStatusSchema = z.enum([
   "pending",
@@ -314,11 +315,13 @@ export const LedgerEntrySchema = z.object({
 export const HoldInvoiceStatusSchema = z.enum([
   "pending",
   "held",
+  "forwarding",
   "settled",
   "cancelled",
   "expired",
 ]);
 export type HoldInvoiceStatus = z.infer<typeof HoldInvoiceStatusSchema>;
+export type HoldStatus = HoldInvoiceStatus | "human_submitted";
 
 export interface HoldInvoice {
   id: string;
