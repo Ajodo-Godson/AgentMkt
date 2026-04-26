@@ -11,15 +11,15 @@ import { log } from "../log.js";
  *
  * The README references `https://mcp.402index.io` but that DNS record does
  * not exist — there is no MCP server. The real index is a JSON REST API at
- * `https://402index.io/api/v1/services`. We hit it directly.
+ * `https://402index.io/api/v1/services` with full search support.
  *
- * Reality check:
- *   - The directory has ~50 services, not 1100. Mostly crypto/data feeds.
- *   - Only ~9 are L402 (the rest are x402). We filter L402-only because the
- *     hub speaks L402.
- *   - Their categories ("crypto", "ai/ml", "uncategorized", ...) don't map
- *     onto our closed enum, so we keyword-match on name + description for
- *     each requested tag.
+ * Strategy:
+ *   - For each requested capability tag, hit the search endpoint with
+ *     `?q=<keyword>&protocol=L402&limit=100` (one query per tag).
+ *   - Filter L402-only server-side because the hub speaks L402.
+ *   - Cache per-tag for 60s. Dedupe across tags by service id.
+ *   - Their per-call result cap appears to be 200; for our specific tags
+ *     each query returns far less, so a single page is enough.
  *
  * On API failure we fall back to seeded source="402index" rows so dev
  * doesn't break offline.
@@ -28,7 +28,8 @@ import { log } from "../log.js";
 const FEED_URL =
   process.env.INDEX_402_FEED_URL ?? "https://402index.io/api/v1/services";
 const CACHE_TTL_MS = 60_000;
-const FETCH_TIMEOUT_MS = 5_000;
+const FETCH_TIMEOUT_MS = 6_000;
+const PER_TAG_LIMIT = 100;
 
 type Service = {
   id: string;
@@ -46,19 +47,24 @@ type Service = {
   l402_compliant: boolean | null;
 };
 
-let cache: { at: number; services: Service[] } | null = null;
+const cache = new Map<string, { at: number; services: Service[] }>();
 
-async function fetchFeed(): Promise<Service[]> {
-  if (cache && Date.now() - cache.at < CACHE_TTL_MS) return cache.services;
+async function fetchByQuery(query: string): Promise<Service[]> {
+  const cached = cache.get(query);
+  if (cached && Date.now() - cached.at < CACHE_TTL_MS) return cached.services;
 
   const ac = new AbortController();
   const t = setTimeout(() => ac.abort(), FETCH_TIMEOUT_MS);
   try {
-    const r = await fetch(FEED_URL, { signal: ac.signal });
+    const url = new URL(FEED_URL);
+    url.searchParams.set("q", query);
+    url.searchParams.set("protocol", "L402");
+    url.searchParams.set("limit", String(PER_TAG_LIMIT));
+    const r = await fetch(url, { signal: ac.signal });
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
     const json = (await r.json()) as { services?: Service[] };
     const services = Array.isArray(json.services) ? json.services : [];
-    cache = { at: Date.now(), services };
+    cache.set(query, { at: Date.now(), services });
     return services;
   } finally {
     clearTimeout(t);
@@ -66,19 +72,21 @@ async function fetchFeed(): Promise<Service[]> {
 }
 
 /**
- * Tag → keyword sniffer. Loose substring match over name+description+category.
- * Tags absent from this map (the human-only tags) skip external entirely.
+ * Tag → search query. The first string is what we send to 402index's `q`
+ * param; the array is the loose substring filter we apply on returned
+ * names+descriptions+categories to decide which of our tags each service
+ * matches. Human-only tags are absent (we don't search externally for them).
  */
-const TAG_KEYWORDS: Partial<Record<CapabilityTag, string[]>> = {
-  summarization: ["summar"],
-  translation_es: ["translat", "spanish", " es "],
-  translation_fr: ["translat", "french", " fr "],
-  translation_de: ["translat", "german", " de "],
-  tts_en: ["tts", "speech", "voice", "audio"],
-  tts_fr: ["tts", "speech", "voice", "audio"],
-  image_generation: ["image", "diffus", "art"],
-  code_review: ["code", "lint", "review", "static analys"],
-  fact_check: ["fact", "verif"],
+const TAG_SEARCH: Partial<Record<CapabilityTag, { q: string; kws: string[] }>> = {
+  summarization: { q: "summarize", kws: ["summar"] },
+  translation_es: { q: "translate", kws: ["translat", "spanish", " es "] },
+  translation_fr: { q: "translate", kws: ["translat", "french", " fr "] },
+  translation_de: { q: "translate", kws: ["translat", "german", " de "] },
+  tts_en: { q: "speech voice audio", kws: ["tts", "speech", "voice", "audio"] },
+  tts_fr: { q: "speech voice audio", kws: ["tts", "speech", "voice", "audio"] },
+  image_generation: { q: "image generation", kws: ["image", "diffus", "art"] },
+  code_review: { q: "code review", kws: ["code", "lint", "review", "static analys"] },
+  fact_check: { q: "fact check", kws: ["fact", "verif"] },
 };
 
 function matchesAnyTag(svc: Service, tags: CapabilityTag[]): CapabilityTag[] {
@@ -87,9 +95,9 @@ function matchesAnyTag(svc: Service, tags: CapabilityTag[]): CapabilityTag[] {
     .toLowerCase();
   const matched: CapabilityTag[] = [];
   for (const tag of tags) {
-    const kws = TAG_KEYWORDS[tag];
-    if (!kws) continue;
-    if (kws.some((k) => haystack.includes(k))) matched.push(tag);
+    const entry = TAG_SEARCH[tag];
+    if (!entry) continue;
+    if (entry.kws.some((k) => haystack.includes(k))) matched.push(tag);
   }
   return matched;
 }
@@ -121,10 +129,33 @@ async function fetchExternalLive(
   capability_tags: CapabilityTag[],
   opts: { max_price_sats?: number },
 ): Promise<WorkerCandidate[]> {
-  const services = await fetchFeed();
+  // One search per requested tag, then dedupe by service id. This is fast in
+  // practice (each query is a few hundred ms, all run in parallel) and gives
+  // us full directory coverage instead of just the first 200 unfiltered.
+  const queries = Array.from(
+    new Set(
+      capability_tags.flatMap((t) => {
+        const entry = TAG_SEARCH[t];
+        return entry ? [entry.q] : [];
+      }),
+    ),
+  );
+  if (queries.length === 0) return [];
+
+  const batches = await Promise.all(
+    queries.map((q) =>
+      fetchByQuery(q).catch(() => [] as Service[]),
+    ),
+  );
+
+  const seen = new Map<string, Service>();
+  for (const batch of batches) {
+    for (const svc of batch) seen.set(svc.id, svc);
+  }
+
   const results: WorkerCandidate[] = [];
-  for (const svc of services) {
-    if (svc.protocol !== "L402") continue; // hub only speaks L402
+  for (const svc of seen.values()) {
+    if (svc.protocol !== "L402") continue; // safety: server should already filter
     if (
       opts.max_price_sats !== undefined &&
       (svc.price_sats ?? 0) > opts.max_price_sats
