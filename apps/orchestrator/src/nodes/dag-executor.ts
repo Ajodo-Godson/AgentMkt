@@ -7,6 +7,26 @@ import { marketplace } from "../clients/marketplace.js";
 import { jobStore, planStore } from "../store.js";
 import { logger } from "../logger.js";
 
+// Extract the primary text output from a completed step's result.
+function extractText(result: StepResult | undefined): string | undefined {
+  if (!result) return undefined;
+  if (result.kind === "text") return result.text;
+  if (result.kind === "json") {
+    const d = result.data as Record<string, unknown>;
+    if (typeof d.summary === "string") return d.summary;
+    if (typeof d.translated_text === "string") return d.translated_text;
+    if (typeof d.text === "string") return d.text;
+    return JSON.stringify(d);
+  }
+  return undefined;
+}
+
+// Derive BCP-47 language code from a capability tag like "translation_fr".
+function capabilityToLang(tag: string): string | undefined {
+  const m = tag.match(/^translation_([a-z]{2})$/);
+  return m?.[1];
+}
+
 function getReadySteps(steps: Step[]): Step[] {
   return steps.filter(
     (s) =>
@@ -65,16 +85,42 @@ async function executeStep(
         });
         // Human result arrives via hub/human-submit; poll hub for it.
         // For Phase 1 mocks, forward mock returns immediately.
+        // Build payload with chained outputs from dependency steps so internal
+        // suppliers receive the data they need without a separate fetch.
+        const depText = step.depends_on
+          .map((id) => allSteps.find((s) => s.id === id))
+          .map((s) => extractText(s?.result))
+          .find(Boolean);
+        const targetLang = capabilityToLang(step.capability_tag);
+        const chainedPayload = {
+          step_id: step.id,
+          spec: step.dag_node,
+          _req_id: `${job_id}_${step.id}_${attempt}`,
+          ...(depText ? { text: depText, input_text: depText } : {}),
+          ...(targetLang ? { target_lang: targetLang } : {}),
+        };
         forwardResult = await hub.forward({
           hold_invoice_id: holdInvoiceId,
           supplier_endpoint: supplierEndpoint,
-          supplier_payload: { step_id: step.id, spec: step.dag_node, _req_id: `${job_id}_${step.id}_${attempt}` },
+          supplier_payload: chainedPayload,
         });
       } else {
+        const depText = step.depends_on
+          .map((id) => allSteps.find((s) => s.id === id))
+          .map((s) => extractText(s?.result))
+          .find(Boolean);
+        const targetLang = capabilityToLang(step.capability_tag);
+        const chainedPayload = {
+          step_id: step.id,
+          spec: step.dag_node,
+          _req_id: `${job_id}_${step.id}_${attempt}`,
+          ...(depText ? { text: depText, input_text: depText } : {}),
+          ...(targetLang ? { target_lang: targetLang } : {}),
+        };
         forwardResult = await hub.forward({
           hold_invoice_id: holdInvoiceId,
           supplier_endpoint: supplierEndpoint,
-          supplier_payload: { step_id: step.id, spec: step.dag_node, _req_id: `${job_id}_${step.id}_${attempt}` },
+          supplier_payload: chainedPayload,
         });
       }
 
