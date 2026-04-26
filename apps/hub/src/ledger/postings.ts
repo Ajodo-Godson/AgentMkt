@@ -41,6 +41,12 @@ function assertPositiveInt(n: number, field = "amount_sats"): void {
   }
 }
 
+function normalizeNullableText(value: string | null | undefined): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
 /**
  * Insert a single posting. All amounts must be non-negative integer sats; the
  * `type` field encodes whether this is a credit or a debit per spec section 5
@@ -55,12 +61,12 @@ export async function recordPosting(
     .values({
       id: `ledger_${randomUUID()}`,
       job_id: input.job_id,
-      step_id: input.step_id ?? null,
+      step_id: normalizeNullableText(input.step_id),
       type: input.type,
       amount_sats: input.amount_sats,
-      hold_invoice_id: input.hold_invoice_id ?? null,
-      bolt11: input.bolt11 ?? null,
-      preimage: input.preimage ?? null,
+      hold_invoice_id: normalizeNullableText(input.hold_invoice_id),
+      bolt11: normalizeNullableText(input.bolt11),
+      preimage: normalizeNullableText(input.preimage),
       meta: input.meta ?? null,
     })
     .returning({ id: schema.ledgerEntries.id });
