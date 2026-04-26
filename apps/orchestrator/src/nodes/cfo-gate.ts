@@ -5,9 +5,6 @@ import type { OrchestratorStateType } from "../state.js";
 import { jobStore } from "../store.js";
 import { logger } from "../logger.js";
 
-// A job is "expensive" if it exceeds this absolute threshold OR 50% of wallet.
-const EXPENSIVE_SATS_THRESHOLD = 5_000;
-
 function evaluate(
   wallet_balance_sats: number,
   steps: Step[],
@@ -15,12 +12,18 @@ function evaluate(
 ): CfoVerdict {
   const total = steps.reduce((sum, s) => sum + s.estimate_sats, 0);
 
-  // Rule 1: can't afford it — ask COO to replan cheaper
+  // Rule 1: the only time CFO talks to the user is when the proposal exceeds wallet.
   if (total * 1.2 > wallet_balance_sats) {
+    const lines = steps.map(
+      (s) => `- ${s.dag_node}: ~${s.estimate_sats} sats`
+    );
     return {
-      kind: "REVISE",
-      reason: "over_budget",
-      detail: `Estimated total ${total} sats × 1.2 = ${Math.ceil(total * 1.2)} exceeds wallet balance ${wallet_balance_sats} sats.`,
+      kind: "USER_CONFIRM",
+      summary:
+        `The COO's proposed spend exceeds the current wallet balance.\n` +
+        `${lines.join("\n")}\n` +
+        `Total: ~${total} sats (max with buffer: ${Math.ceil(total * 1.2)} sats).\n` +
+        `Wallet balance: ${wallet_balance_sats} sats.`,
     };
   }
 
@@ -48,25 +51,6 @@ function evaluate(
         };
       }
     }
-  }
-
-  // Rule 4: only interrupt the user when the job is genuinely expensive.
-  // Threshold: >5000 sats absolute OR >50% of wallet balance.
-  const hasHumanStep = steps.some((s) => s.human_required);
-  const isExpensive =
-    total > EXPENSIVE_SATS_THRESHOLD || total > 0.5 * wallet_balance_sats;
-
-  if (isExpensive || hasHumanStep) {
-    const lines = steps.map(
-      (s) => `• ${s.dag_node}: ~${s.estimate_sats} sats (${s.human_required ? "human" : "agent"})`
-    );
-    const reason = hasHumanStep
-      ? "This plan includes a human worker step that requires your approval."
-      : `Estimated cost ~${total} sats is above the confirmation threshold.`;
-    return {
-      kind: "USER_CONFIRM",
-      summary: `${reason}\n${lines.join("\n")}\nTotal: ~${total} sats (max with buffer: ${Math.ceil(total * 1.2)} sats).`,
-    };
   }
 
   return { kind: "APPROVED" };
@@ -100,9 +84,13 @@ export async function cfoGateNode(
       return { job: cancelled, cfo_verdict: verdict };
     }
 
-    const executing = { ...job, status: "executing" as const, updated_at: new Date().toISOString() };
-    jobStore.set(job.id, executing);
-    return { job: executing, cfo_verdict: { kind: "APPROVED" } };
+    const failed = { ...job, status: "failed" as const, updated_at: new Date().toISOString() };
+    jobStore.set(job.id, failed);
+    return {
+      job: failed,
+      cfo_verdict: verdict,
+      error: "COO proposal exceeds wallet balance. Replan or add funds before retrying.",
+    };
   }
 
   return { cfo_verdict: verdict };
