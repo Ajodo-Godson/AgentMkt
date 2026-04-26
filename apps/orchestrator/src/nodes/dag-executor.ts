@@ -4,7 +4,7 @@ import type { Step, StepResult, CapabilityTag } from "@agentmkt/contracts";
 import type { OrchestratorStateType } from "../state.js";
 import { hub } from "../clients/hub.js";
 import { marketplace } from "../clients/marketplace.js";
-import { jobStore } from "../store.js";
+import { jobStore, planStore } from "../store.js";
 import { logger } from "../logger.js";
 
 function getReadySteps(steps: Step[]): Step[] {
@@ -124,7 +124,7 @@ async function executeStep(
 export async function dagExecutorNode(
   state: OrchestratorStateType
 ): Promise<Partial<OrchestratorStateType>> {
-  const { job } = state;
+  const { job, plan } = state;
   const log = logger.child({ job_id: job.id, node: "dag-executor" });
 
   let steps = [...state.steps];
@@ -142,6 +142,12 @@ export async function dagExecutorNode(
     for (const step of ready) {
       const result = await executeStep(step, job.id, steps, log);
       steps = steps.map((s) => (s.id === result.id ? result : s));
+      if (plan) {
+        planStore.set(plan.id, {
+          ...plan,
+          steps,
+        });
+      }
     }
 
     const anyFailed = steps.some((s) => s.status === "failed");
@@ -149,8 +155,21 @@ export async function dagExecutorNode(
       log.error("One or more required steps failed");
       const failed = { ...job, status: "failed" as const, updated_at: new Date().toISOString() };
       jobStore.set(job.id, failed);
+      if (plan) {
+        planStore.set(plan.id, {
+          ...plan,
+          steps,
+        });
+      }
       return { job: failed, steps, error: "One or more required steps failed." };
     }
+  }
+
+  if (plan) {
+    planStore.set(plan.id, {
+      ...plan,
+      steps,
+    });
   }
 
   return { job: executing, steps };

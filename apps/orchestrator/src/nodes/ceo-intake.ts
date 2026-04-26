@@ -47,7 +47,7 @@ If the request is ambiguous (missing target language, missing source material, e
 export async function ceoIntakeNode(
   state: OrchestratorStateType
 ): Promise<Partial<OrchestratorStateType>> {
-  const { job } = state;
+  let { job } = state;
   const log = logger.child({ job_id: job.id, node: "ceo-intake" });
 
   log.info("CEO intake started");
@@ -87,6 +87,12 @@ export async function ceoIntakeNode(
 
     // Resume: re-run extraction with the user's answer appended
     const updatedPrompt = `${job.prompt}\n\nUser clarification: ${answer}`;
+    job = {
+      ...job,
+      prompt: updatedPrompt,
+      updated_at: new Date().toISOString(),
+    };
+    jobStore.set(job.id, job);
     try {
       extraction = await extractIntent(updatedPrompt);
     } catch {

@@ -96,7 +96,7 @@ function getApprovalState(snapshot: JobSnapshot | null) {
   if (snapshot.job.status === "awaiting_user") {
     return {
       title: "Approval required",
-      detail: "This route includes a human worker. Confirm before AgentMkt reserves funds for the human step.",
+      detail: "The proposed route exceeds current wallet balance. Review before AgentMkt continues.",
       score: 42,
       scoreTone: "text-warning",
       boxTone: "border-warning/35 bg-warning/10"

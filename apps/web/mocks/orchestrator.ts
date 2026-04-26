@@ -26,9 +26,9 @@ app.use(
 app.get("/health", (context) => context.json({ ok: true }));
 
 app.post("/jobs", async (context) => {
-  const body = (await context.req.json()) as { user_id: string; prompt: string; budget_sats: number };
-  if (!body.prompt || !Number.isInteger(body.budget_sats) || body.budget_sats < 100) {
-    return context.json({ error: "validation", details: "prompt and integer budget_sats >= 100 required" }, 400);
+  const body = (await context.req.json()) as { user_id: string; prompt: string };
+  if (!body.prompt?.trim()) {
+    return context.json({ error: "validation", details: "prompt is required" }, 400);
   }
 
   const now = new Date().toISOString();
@@ -42,8 +42,7 @@ app.post("/jobs", async (context) => {
       id,
       user_id: body.user_id,
       prompt: body.prompt,
-      budget_sats: body.budget_sats,
-      locked_sats: body.budget_sats,
+      locked_sats: 1500,
       spent_sats: 0,
       status: "planning",
       created_at: now,
@@ -111,7 +110,7 @@ function materializeSnapshot(stored: StoredJob): JobSnapshot {
 
   let status: Job["status"] = "planning";
   let spent = 0;
-  let locked = stored.job.budget_sats;
+  let locked = stored.job.locked_sats;
 
   if (stored.cancelled) {
     status = "cancelled";
@@ -127,7 +126,7 @@ function materializeSnapshot(stored: StoredJob): JobSnapshot {
   } else if (stored.confirmedAtMs) {
     status = "executing";
     spent = steps.filter((step) => step.status === "succeeded").reduce((sum, step) => sum + step.estimate_sats, 0);
-    locked = Math.max(0, stored.job.budget_sats - spent);
+    locked = Math.max(0, stored.job.locked_sats - spent);
   }
 
   return {

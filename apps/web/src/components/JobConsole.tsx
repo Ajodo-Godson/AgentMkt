@@ -56,9 +56,7 @@ export function JobConsole({ initialJobId }: { initialJobId?: string }) {
     try {
       const created = await createJob({
         user_id: "user_demo_buyer",
-        prompt: prompt.trim(),
-        // TODO(P4/P1): remove budget_sats from user-facing job creation once orchestrator derives spend from hub wallet balance.
-        budget_sats: DEMO_WALLET_AVAILABLE_SATS
+        prompt: prompt.trim()
       });
       setJobId(created.job_id);
       window.history.pushState(null, "", `/jobs/${created.job_id}`);
@@ -215,7 +213,7 @@ function buildTraceLines(snapshot: JobSnapshot | null): string[] {
 
   const lines = [
     `${snapshot.job.id} status=${snapshot.job.status}`,
-    `wallet_capacity=${snapshot.job.budget_sats} reserved=${snapshot.job.locked_sats} settled=${snapshot.job.spent_sats}`
+    `wallet_balance=${snapshot.debug?.wallet_balance_sats ?? "unknown"} reserved=${snapshot.job.locked_sats} settled=${snapshot.job.spent_sats}`
   ];
 
   if (snapshot.plan) {
