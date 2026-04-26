@@ -9,8 +9,12 @@
   "scripts": {
     "build": "pnpm -r build",
     "dev": "pnpm -r --parallel dev",
+    "dev:web": "pnpm --dir apps/web dev",
+    "dev:web:mock": "pnpm --dir apps/web mock",
+    "dev:tg": "pnpm --dir apps/tg-bot dev",
     "lint": "pnpm -r lint",
     "typecheck": "pnpm -r typecheck",
+    "build:web": "pnpm --dir apps/web build",
     "db:generate": "pnpm --filter @agentmkt/db generate",
     "db:migrate": "pnpm --filter @agentmkt/db migrate",
     "db:push": "pnpm --filter @agentmkt/db push",
