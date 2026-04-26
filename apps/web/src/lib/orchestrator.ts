@@ -26,7 +26,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return response.json() as Promise<T>;
 }
 
-export async function createJob(input: { user_id: string; prompt: string; budget_sats: number }) {
+export async function createJob(input: { user_id: string; prompt: string }) {
   return request<{ job_id: string }>("/jobs", {
     method: "POST",
     body: JSON.stringify(input)
