@@ -9,7 +9,7 @@ import { PlanTrace } from "./PlanTrace";
 import { RatingPrompt } from "./RatingPrompt";
 import { StatusBadge } from "./StatusBadge";
 import { TreasuryPanel } from "./TreasuryPanel";
-import { createTopupInvoice, getServiceHealth, getTopupStatus } from "@/lib/hub";
+import { createTopupInvoice, getServiceHealth, getTopupStatus, getWalletBalance, type ExtendedJobBalanceResponse } from "@/lib/hub";
 import { clarifyJob, confirmJob, createJob, getJob, startJob } from "@/lib/orchestrator";
 import { connectWallet, userIdFromPubkey, type ConnectedWallet } from "@/lib/webln";
 import { DEFAULT_PROMPT } from "@/lib/workers";
@@ -36,10 +36,19 @@ export function JobConsole({ initialJobId }: { initialJobId?: string }) {
   const [topupJobId, setTopupJobId] = useState<string | null>(null);
   const [startingJob, setStartingJob] = useState(false);
   const [topupAmountInput, setTopupAmountInput] = useState(String(DEFAULT_TOPUP_SATS));
+  const [accountBalance, setAccountBalance] = useState<ExtendedJobBalanceResponse | null>(null);
+
+  const currentUserId = snapshot?.job.user_id ?? (wallet ? userIdFromPubkey(wallet.pubkey) : buyerUserId);
 
   const loadJob = useCallback(async (id: string) => {
     const nextSnapshot = await getJob(id);
     setSnapshot(nextSnapshot);
+  }, []);
+
+  const loadAccountBalance = useCallback(async (userId: string) => {
+    const nextBalance = await getWalletBalance(userId);
+    setAccountBalance(nextBalance);
+    return nextBalance;
   }, []);
 
   const loadHealth = useCallback(async () => {
@@ -86,6 +95,19 @@ export function JobConsole({ initialJobId }: { initialJobId?: string }) {
   }, [jobId, loadJob, snapshot?.job.status]);
 
   useEffect(() => {
+    let cancelled = false;
+    loadAccountBalance(currentUserId).catch(() => {
+      if (!cancelled) {
+        setAccountBalance(null);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [currentUserId, loadAccountBalance, snapshot?.job.updated_at]);
+
+  useEffect(() => {
     if (!topupBolt11 || !topupJobId || topupStatus !== "awaiting" || startingJob) {
       return;
     }
@@ -101,7 +123,7 @@ export function JobConsole({ initialJobId }: { initialJobId?: string }) {
         setStartingJob(true);
         setTopupStatus("paid");
         await startJob(topupJobId);
-        await loadJob(topupJobId);
+        await Promise.all([loadJob(topupJobId), loadAccountBalance(currentUserId)]);
       } catch (caught) {
         if (!cancelled) {
           setTopupStatus("error");
@@ -118,7 +140,7 @@ export function JobConsole({ initialJobId }: { initialJobId?: string }) {
       cancelled = true;
       window.clearInterval(interval);
     };
-  }, [loadJob, startingJob, topupBolt11, topupJobId, topupStatus]);
+  }, [currentUserId, loadAccountBalance, loadJob, startingJob, topupBolt11, topupJobId, topupStatus]);
 
   const handleConnectWallet = useCallback(async () => {
     setWalletConnecting(true);
@@ -156,6 +178,17 @@ export function JobConsole({ initialJobId }: { initialJobId?: string }) {
       setJobId(created.job_id);
       window.history.pushState(null, "", `/jobs/${created.job_id}`);
       await loadJob(created.job_id);
+      const balance = await loadAccountBalance(userId);
+      if (balance.available_sats > 0) {
+        setStartingJob(true);
+        try {
+          await startJob(created.job_id);
+          await Promise.all([loadJob(created.job_id), loadAccountBalance(userId)]);
+        } finally {
+          setStartingJob(false);
+        }
+        return;
+      }
       setTopupStatus("creating");
       try {
         const invoice = await createTopupInvoice(created.job_id, topupAmountSats);
@@ -171,7 +204,7 @@ export function JobConsole({ initialJobId }: { initialJobId?: string }) {
     } finally {
       setIsLaunching(false);
     }
-  }, [loadJob, prompt, topupAmountSats, topupAmountValid, wallet]);
+  }, [loadAccountBalance, loadJob, prompt, topupAmountSats, topupAmountValid, wallet]);
 
   const handleConfirm = useCallback(
     async (confirmed: boolean) => {
@@ -359,14 +392,14 @@ export function JobConsole({ initialJobId }: { initialJobId?: string }) {
             <p className="section-label">Services</p>
             <span className={`h-2 w-2 rounded-full ${health?.ok === false ? "bg-danger" : "bg-success"}`} />
           </div>
-          <div className="space-y-2 text-xs text-muted-foreground">
+            <div className="space-y-2 text-xs text-muted-foreground">
             <ServiceLine item={health?.services.orchestrator} label="Orchestrator" />
             <ServiceLine item={health?.services.marketplace} label="Marketplace" />
             <ServiceLine item={health?.services.hub} label="Hub" />
             <ServiceLine item={health?.services.lexe} label="Lexe" />
             <div className="flex items-center justify-between border-t border-border-subtle pt-2">
-              <span>Hub balance</span>
-              <span className="mono">{formatMaybeSats(snapshot?.debug?.wallet_balance_sats)}</span>
+              <span>Account balance</span>
+              <span className="mono">{formatMaybeSats(accountBalance?.available_sats ?? snapshot?.debug?.wallet_balance_sats)}</span>
             </div>
           </div>
         </div>
@@ -425,7 +458,7 @@ export function JobConsole({ initialJobId }: { initialJobId?: string }) {
           />
           <PlanTrace snapshot={snapshot} />
           <div className="space-y-4">
-            <TreasuryPanel snapshot={snapshot} />
+            <TreasuryPanel snapshot={snapshot} userId={currentUserId} />
             <RatingPrompt snapshot={snapshot} />
             <section className="panel p-4" id="trace">
               <div className="mb-3 flex items-center gap-2">

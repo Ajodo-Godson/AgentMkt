@@ -86,20 +86,14 @@ export const hub = {
 
   walletBalance: async (user_id: string) => {
     if (useMocks()) return mockHub.walletBalance(user_id);
-    // Hub doesn't have a per-user wallet endpoint — read Lexe node balance via
-    // the hub health probe. Falls back to DEMO_WALLET_SATS if sidecar isn't up.
-    try {
-      const res = await fetch(`${BASE}/health/lexe`);
-      if (res.ok) {
-        const data = await res.json() as { lightning_balance_sats?: number };
-        if (typeof data.lightning_balance_sats === "number") {
-          return { available_sats: data.lightning_balance_sats };
-        }
-      }
-    } catch {
-      // sidecar not running — fall through to demo fallback
-    }
-    const fallback = Number(process.env.DEMO_WALLET_SATS ?? 100_000);
-    return { available_sats: fallback };
+    const res = await fetch(`${BASE}/hub/wallet/${encodeURIComponent(user_id)}/balance`);
+    if (!res.ok) throw new Error(`Hub /hub/wallet/${user_id}/balance → ${res.status}`);
+    return res.json() as Promise<{
+      topped_up_sats: number;
+      held_sats: number;
+      settled_sats: number;
+      fees_sats: number;
+      available_sats: number;
+    }>;
   },
 };

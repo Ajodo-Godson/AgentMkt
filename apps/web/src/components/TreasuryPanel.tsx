@@ -2,34 +2,41 @@
 
 import { BadgeCheck, Landmark, LockKeyhole, RotateCcw, ShieldAlert, WalletCards } from "lucide-react";
 import { useEffect, useState } from "react";
-import { getJobBalance, type ExtendedJobBalanceResponse } from "@/lib/hub";
+import { getWalletBalance, type ExtendedJobBalanceResponse } from "@/lib/hub";
 import type { JobSnapshot } from "@/lib/types";
 
-export function TreasuryPanel({ snapshot }: { snapshot: JobSnapshot | null }) {
+export function TreasuryPanel({ snapshot, userId }: { snapshot: JobSnapshot | null; userId: string }) {
   const [balance, setBalance] = useState<ExtendedJobBalanceResponse | null>(null);
   const [balanceError, setBalanceError] = useState<string | null>(null);
   const job = snapshot?.job;
   const estimate = snapshot?.plan?.total_estimate_sats ?? null;
-  const walletBalance = snapshot?.debug?.wallet_balance_sats ?? null;
+  const accountBalance = balance?.available_sats ?? snapshot?.debug?.wallet_balance_sats ?? null;
   const reserved = balance?.held_sats ?? job?.locked_sats ?? null;
   const settled = balance?.settled_sats ?? job?.spent_sats ?? null;
   const available = balance?.available_sats ?? null;
   const fees = balance?.fees_sats ?? null;
+  const toppedUp = balance?.topped_up_sats ?? null;
+  const fundedTotal =
+    typeof toppedUp === "number"
+      ? toppedUp
+      : typeof available === "number" && typeof reserved === "number" && typeof settled === "number"
+        ? available + reserved + settled
+        : null;
   const walletUsed =
-    typeof walletBalance === "number" && typeof reserved === "number" && typeof settled === "number" && walletBalance > 0
-      ? Math.min(100, ((reserved + settled) / walletBalance) * 100)
+    typeof fundedTotal === "number" && typeof reserved === "number" && typeof settled === "number" && fundedTotal > 0
+      ? Math.min(100, ((reserved + settled) / fundedTotal) * 100)
       : 0;
   const approval = getApprovalState(snapshot);
 
   useEffect(() => {
-    if (!job?.id) {
+    if (!userId) {
       setBalance(null);
       setBalanceError(null);
       return;
     }
 
     let cancelled = false;
-    getJobBalance(job.id)
+    getWalletBalance(userId)
       .then((nextBalance) => {
         if (!cancelled) {
           setBalance(nextBalance);
@@ -39,21 +46,21 @@ export function TreasuryPanel({ snapshot }: { snapshot: JobSnapshot | null }) {
       .catch((caught) => {
         if (!cancelled) {
           setBalance(null);
-          setBalanceError(caught instanceof Error ? caught.message : "Hub balance unavailable");
+          setBalanceError(caught instanceof Error ? caught.message : "Account balance unavailable");
         }
       });
 
     return () => {
       cancelled = true;
     };
-  }, [job?.id, snapshot?.job.updated_at]);
+  }, [snapshot?.job.updated_at, userId]);
 
   return (
     <section className="panel-strong wallet-panel p-4">
       <div className="mb-4 flex items-center justify-between">
         <div>
           <p className="section-label">Payments</p>
-          <h2 className="text-lg font-semibold">Hub balance</h2>
+          <h2 className="text-lg font-semibold">Account balance</h2>
         </div>
         <div className="flex h-9 w-9 items-center justify-center rounded-md border border-border-subtle bg-primary/5">
           <Landmark className="h-4 w-4 text-primary" />
@@ -62,10 +69,10 @@ export function TreasuryPanel({ snapshot }: { snapshot: JobSnapshot | null }) {
 
       <div className="rounded-md border border-border-subtle bg-card p-3">
         <div className="mb-2 flex items-center justify-between text-xs text-muted-foreground">
-          <span>Wallet balance</span>
+          <span>Available balance</span>
           <span className="mono">sats</span>
         </div>
-        <p className="mono text-2xl font-semibold">{formatMetric(walletBalance)}</p>
+        <p className="mono text-2xl font-semibold">{formatMetric(accountBalance)}</p>
         <div className="mt-3 h-2 overflow-hidden rounded-full bg-muted">
           <div className="h-full rounded-full bg-primary transition-[width] duration-200" style={{ width: `${walletUsed}%` }} />
         </div>
@@ -77,7 +84,7 @@ export function TreasuryPanel({ snapshot }: { snapshot: JobSnapshot | null }) {
         <WalletMetric icon={BadgeCheck} label="Settled" tone="text-success" value={formatMetric(settled)} />
         <WalletMetric icon={RotateCcw} label="Available" value={formatMetric(available)} />
         <WalletMetric icon={ShieldAlert} label="Fees" value={formatMetric(fees)} />
-        <WalletMetric icon={WalletCards} label="Topup" value={formatMetric(balance?.topped_up_sats ?? null)} />
+        <WalletMetric icon={WalletCards} label="Topup" value={formatMetric(toppedUp)} />
       </div>
 
       {balanceError ? <p className="mt-3 rounded-md border border-danger/35 bg-danger/10 p-3 text-xs text-danger">{balanceError}</p> : null}
@@ -137,7 +144,7 @@ function getApprovalState(snapshot: JobSnapshot | null) {
   if (snapshot.job.status === "awaiting_funds") {
     return {
       title: "Awaiting topup",
-      detail: "Pay the topup invoice from the connected Lightning wallet before orchestration starts.",
+      detail: "Pay the topup invoice to add funds to this account before orchestration starts.",
       boxTone: "border-warning/35 bg-warning/10"
     };
   }

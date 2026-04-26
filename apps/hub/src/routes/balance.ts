@@ -1,7 +1,8 @@
 // GET /hub/job-balance/:job_id
+// GET /hub/wallet/:user_id/balance
 
 import { Hono } from "hono";
-import { computeJobBalance } from "../ledger/balance.js";
+import { computeJobBalance, computeUserBalance } from "../ledger/balance.js";
 import { jsonError } from "../lib/errors.js";
 import { childLogger } from "../lib/logger.js";
 
@@ -18,6 +19,24 @@ export const balanceRoute = new Hono().get("/job-balance/:job_id", async (c) => 
     //   { topped_up_sats, held_sats, settled_sats, fees_sats, available_sats }
     // We also include `payouts_sats` as a non-spec extension (useful for the
     // demo dashboard); orchestrator can ignore.
+    return c.json({
+      topped_up_sats: bal.topped_up_sats,
+      held_sats: bal.held_sats,
+      settled_sats: bal.settled_sats,
+      fees_sats: bal.fees_sats,
+      available_sats: bal.available_sats,
+      payouts_sats: bal.payouts_sats,
+    });
+  } catch (err) {
+    return jsonError(c, err, log);
+  }
+}).get("/wallet/:user_id/balance", async (c) => {
+  try {
+    const user_id = c.req.param("user_id");
+    if (!user_id) {
+      return c.json({ error: "validation", detail: "user_id required" }, 400);
+    }
+    const bal = await computeUserBalance(user_id);
     return c.json({
       topped_up_sats: bal.topped_up_sats,
       held_sats: bal.held_sats,
