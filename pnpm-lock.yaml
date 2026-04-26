@@ -133,6 +133,9 @@ importers:
       dotenv:
         specifier: ^16.4.5
         version: 16.6.1
+      drizzle-orm:
+        specifier: ^0.45.2
+        version: 0.45.2(gel@2.2.0)(pg@8.20.0)(postgres@3.4.9)
       hono:
         specifier: ^4.6.17
         version: 4.12.15
