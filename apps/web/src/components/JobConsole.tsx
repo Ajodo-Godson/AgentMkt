@@ -11,7 +11,7 @@ import { StatusBadge } from "./StatusBadge";
 import { TreasuryPanel } from "./TreasuryPanel";
 import { createTopupInvoice, getServiceHealth, getTopupStatus } from "@/lib/hub";
 import { clarifyJob, confirmJob, createJob, getJob, startJob } from "@/lib/orchestrator";
-import { connectWallet, payInvoice, userIdFromPubkey, type ConnectedWallet } from "@/lib/webln";
+import { connectWallet, userIdFromPubkey, type ConnectedWallet } from "@/lib/webln";
 import { DEFAULT_PROMPT } from "@/lib/workers";
 import type { JobSnapshot, ServiceHealthItem, ServiceHealthResponse } from "@/lib/types";
 
@@ -31,6 +31,9 @@ export function JobConsole({ initialJobId }: { initialJobId?: string }) {
   const [walletConnecting, setWalletConnecting] = useState(false);
   const [topupStatus, setTopupStatus] = useState<"idle" | "creating" | "awaiting" | "paid" | "error">("idle");
   const [topupError, setTopupError] = useState<string | null>(null);
+  const [topupBolt11, setTopupBolt11] = useState<string | null>(null);
+  const [topupJobId, setTopupJobId] = useState<string | null>(null);
+  const [startingJob, setStartingJob] = useState(false);
 
   const loadJob = useCallback(async (id: string) => {
     const nextSnapshot = await getJob(id);
@@ -80,6 +83,41 @@ export function JobConsole({ initialJobId }: { initialJobId?: string }) {
     return () => window.clearInterval(interval);
   }, [jobId, loadJob, snapshot?.job.status]);
 
+  useEffect(() => {
+    if (!topupBolt11 || !topupJobId || topupStatus !== "awaiting" || startingJob) {
+      return;
+    }
+
+    let cancelled = false;
+    const interval = window.setInterval(async () => {
+      try {
+        const status = await getTopupStatus(topupBolt11);
+        if (!status.paid || cancelled) {
+          return;
+        }
+
+        setStartingJob(true);
+        setTopupStatus("paid");
+        await startJob(topupJobId);
+        await loadJob(topupJobId);
+      } catch (caught) {
+        if (!cancelled) {
+          setTopupStatus("error");
+          setTopupError(caught instanceof Error ? caught.message : "Unable to confirm topup");
+        }
+      } finally {
+        if (!cancelled) {
+          setStartingJob(false);
+        }
+      }
+    }, 2000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
+  }, [loadJob, startingJob, topupBolt11, topupJobId, topupStatus]);
+
   const handleConnectWallet = useCallback(async () => {
     setWalletConnecting(true);
     setError(null);
@@ -98,10 +136,9 @@ export function JobConsole({ initialJobId }: { initialJobId?: string }) {
     setError(null);
     setTopupError(null);
     setTopupStatus("idle");
+    setTopupBolt11(null);
+    setTopupJobId(null);
     try {
-      if (!wallet) {
-        throw new Error("Connect Lightning wallet before starting a route");
-      }
       const userId = wallet ? userIdFromPubkey(wallet.pubkey) : buyerUserId;
       const created = await createJob({
         user_id: userId,
@@ -114,28 +151,11 @@ export function JobConsole({ initialJobId }: { initialJobId?: string }) {
       try {
         const invoice = await createTopupInvoice(created.job_id, DEFAULT_TOPUP_SATS);
         setTopupStatus("awaiting");
-        await payInvoice(invoice.bolt11);
-
-        let paid = false;
-        for (let attempt = 0; attempt < 15; attempt++) {
-          const status = await getTopupStatus(invoice.bolt11);
-          if (status.paid) {
-            paid = true;
-            break;
-          }
-          await new Promise((resolve) => window.setTimeout(resolve, 1000));
-        }
-
-        if (!paid) {
-          throw new Error("Topup payment was not confirmed by the hub");
-        }
-
-        setTopupStatus("paid");
-        await startJob(created.job_id);
-        await loadJob(created.job_id);
+        setTopupBolt11(invoice.bolt11);
+        setTopupJobId(created.job_id);
       } catch (caught) {
         setTopupStatus("error");
-        setTopupError(caught instanceof Error ? caught.message : "Topup payment failed");
+        setTopupError(caught instanceof Error ? caught.message : "Topup invoice creation failed");
       }
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Unable to launch job");
@@ -221,23 +241,51 @@ export function JobConsole({ initialJobId }: { initialJobId?: string }) {
               </div>
             </div>
           ) : (
-            <button
-              className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-md border border-border-subtle bg-card text-xs font-medium text-foreground shadow-sm transition hover:bg-muted disabled:opacity-60"
-              disabled={walletConnecting}
-              onClick={handleConnectWallet}
-              type="button"
-            >
-              <Wallet className="h-3.5 w-3.5" />
-              {walletConnecting ? "Connecting..." : "Connect Lightning wallet"}
-            </button>
+            <div className="space-y-2">
+              <button
+                className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-md border border-border-subtle bg-card text-xs font-medium text-foreground shadow-sm transition hover:bg-muted disabled:opacity-60"
+                disabled={walletConnecting}
+                onClick={handleConnectWallet}
+                type="button"
+              >
+                <Wallet className="h-3.5 w-3.5" />
+                {walletConnecting ? "Connecting..." : "Connect Lightning wallet (optional)"}
+              </button>
+              <p className="text-xs text-muted-foreground">
+                Manual topup is supported. You can pay the invoice from Lexe without connecting a browser wallet.
+              </p>
+            </div>
           )}
           {topupStatus !== "idle" ? (
-            <div className="mt-2 flex items-center gap-2 border-t border-border-subtle pt-2 text-xs">
-              <Zap className="h-3.5 w-3.5 text-primary" />
-              {topupStatus === "creating" ? <span className="text-muted-foreground">Requesting topup...</span> : null}
-              {topupStatus === "awaiting" ? <span className="text-muted-foreground">Confirm in Alby ({DEFAULT_TOPUP_SATS} sats)</span> : null}
-              {topupStatus === "paid" ? <span className="text-success">Paid, {DEFAULT_TOPUP_SATS} sats</span> : null}
-              {topupStatus === "error" ? <span className="text-danger">Topup failed</span> : null}
+            <div className="mt-2 border-t border-border-subtle pt-2 text-xs">
+              <div className="flex items-center gap-2">
+                <Zap className="h-3.5 w-3.5 text-primary" />
+                {topupStatus === "creating" ? <span className="text-muted-foreground">Requesting topup...</span> : null}
+                {topupStatus === "awaiting" ? <span className="text-muted-foreground">Awaiting manual payment ({DEFAULT_TOPUP_SATS} sats)</span> : null}
+                {topupStatus === "paid" ? <span className="text-success">Paid, {DEFAULT_TOPUP_SATS} sats. Starting route...</span> : null}
+                {topupStatus === "error" ? <span className="text-danger">Topup failed</span> : null}
+              </div>
+              {topupBolt11 ? (
+                <div className="mt-2 space-y-2">
+                  <p className="text-xs text-muted-foreground">
+                    Pay this BOLT11 invoice from Lexe or any Lightning wallet. AgentMkt will start automatically after confirmation.
+                  </p>
+                  <textarea
+                    className="mono min-h-24 w-full resize-y rounded-md border border-border-subtle bg-card px-2 py-2 text-[11px] text-foreground"
+                    readOnly
+                    value={topupBolt11}
+                  />
+                  <button
+                    className="inline-flex h-8 items-center justify-center rounded-md border border-border-subtle bg-card px-3 text-xs font-medium text-foreground transition hover:bg-muted"
+                    onClick={() => {
+                      void navigator.clipboard.writeText(topupBolt11);
+                    }}
+                    type="button"
+                  >
+                    Copy invoice
+                  </button>
+                </div>
+              ) : null}
             </div>
           ) : null}
           {topupError ? <p className="mt-2 text-xs text-danger">{topupError}</p> : null}
