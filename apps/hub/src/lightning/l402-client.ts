@@ -209,10 +209,10 @@ export async function payL402Invoice(
     note: `L402 forward for hold ${ctx.hold_invoice_id}`,
   });
 
-  // Block until the payment finalizes. 60s ceiling — Lightning hops should
-  // resolve in <5s but we're paranoid for the demo.
+  // Block until the payment finalizes. Lexe's own CLI defaults to 600s;
+  // use 180s as a pragmatic ceiling for the hub's forward path.
   const finalized = await lightningClient.waitForPayment(pay.index, {
-    timeoutMs: 60_000,
+    timeoutMs: 180_000,
     intervalMs: 750,
   });
 
